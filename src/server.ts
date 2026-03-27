@@ -40,7 +40,7 @@ const auditService = new AuditService();
 const gmailService = new GmailService({
   clientId: env.GMAIL_CLIENT_ID,
   clientSecret: env.GMAIL_CLIENT_SECRET,
-  redirectUri: env.GMAIL_REDIRECT_URI,
+  redirectUri: env.GMAIL_REDIRECT_URI ?? "https://developers.google.com/oauthplayground",
   refreshToken: env.GMAIL_REFRESH_TOKEN,
   sender: env.GMAIL_SENDER
 });
