@@ -17,7 +17,7 @@ const EnvSchema = z.object({
 
   GMAIL_CLIENT_ID: z.string().min(1),
   GMAIL_CLIENT_SECRET: z.string().min(1),
-  GMAIL_REDIRECT_URI: z.string().url(),
+  GMAIL_REDIRECT_URI: z.string().url().optional(),
   GMAIL_REFRESH_TOKEN: z.string().min(1),
   GMAIL_SENDER: z.string().email(),
 
