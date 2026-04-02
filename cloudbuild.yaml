@@ -13,19 +13,6 @@ substitutions:
   _TIMEOUT: 300s
   _MAX_INSTANCES: "10"
   _MIN_INSTANCES: "0"
-  _APP_BASE_URL: ""
-  _MONDAY_API_URL: https://api.monday.com/v2
-  _WEBHOOK_SECRET: ""
-  _GCS_BUCKET: ""
-  _TEMPLATE_PREFIX: templates
-  _GOOGLE_CLOUD_PROJECT: $PROJECT_ID
-  _GMAIL_CLIENT_ID: ""
-  _GMAIL_CLIENT_SECRET: ""
-  _GMAIL_REDIRECT_URI: https://developers.google.com/oauthplayground
-  _GMAIL_REFRESH_TOKEN: ""
-  _GMAIL_SENDER: ""
-  _SIGN_TOKEN_TTL_MINUTES: "1440"
-  _IDEMPOTENCY_TTL_MINUTES: "60"
 
 steps:
   - id: Build image
@@ -54,8 +41,6 @@ steps:
           auth_flag="--allow-unauthenticated"
         fi
 
-        env_vars="NODE_ENV=production,PORT=8080,APP_BASE_URL=${_APP_BASE_URL},MONDAY_API_URL=${_MONDAY_API_URL},WEBHOOK_SECRET=${_WEBHOOK_SECRET},GCS_BUCKET=${_GCS_BUCKET},TEMPLATE_PREFIX=${_TEMPLATE_PREFIX},GOOGLE_CLOUD_PROJECT=${_GOOGLE_CLOUD_PROJECT},GMAIL_CLIENT_ID=${_GMAIL_CLIENT_ID},GMAIL_CLIENT_SECRET=${_GMAIL_CLIENT_SECRET},GMAIL_REDIRECT_URI=${_GMAIL_REDIRECT_URI},GMAIL_REFRESH_TOKEN=${_GMAIL_REFRESH_TOKEN},GMAIL_SENDER=${_GMAIL_SENDER},SIGN_TOKEN_TTL_MINUTES=${_SIGN_TOKEN_TTL_MINUTES},IDEMPOTENCY_TTL_MINUTES=${_IDEMPOTENCY_TTL_MINUTES}"
-
         gcloud run deploy "${_SERVICE_NAME}" \
           --project "$PROJECT_ID" \
           --image "gcr.io/$PROJECT_ID/monday-doc-automation:$SHORT_SHA" \
@@ -67,7 +52,6 @@ steps:
           --timeout "${_TIMEOUT}" \
           --max-instances "${_MAX_INSTANCES}" \
           --min-instances "${_MIN_INSTANCES}" \
-          --set-env-vars "$${env_vars}" \
           --quiet
 
 images:
