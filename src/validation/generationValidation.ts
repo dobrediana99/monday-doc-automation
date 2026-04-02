@@ -66,12 +66,18 @@ const INVALID_PLACEHOLDER_VALUES = new Set([
 ]);
 
 const REQUIRED_FIELD_LABELS: Record<string, string> = {
+  color_mktcr7h6: "Dep.",
+  email_mkse8jyb: "Email Semnare Client",
+  email_mkvneqyg: "Email Contabilitate client",
   board_relation_mkpw4bcs: "Companie Client",
   board_relation_mkse9rp2: "Companie Furnizor",
   board_relation_mkshmkgt: "Nume Persoana Client",
   deal_value: "Pret Client",
   numeric_mkpknkjp: "Pret Furnizor",
   color_mkse3amh: "Moneda Cursa",
+  color_mktcvtpz: "Sursa Client",
+  color_mktaev1d: "Implicare",
+  deal_owner: "Principal",
   color_mktcqj26: "Client pe",
   color_mkt9as8p: "Furnizor pe",
   lookup_mksha4n0: "VAT Client",
@@ -94,9 +100,11 @@ const REQUIRED_FIELD_LABELS: Record<string, string> = {
   dropdown_mktsr9n2: "Tara Incarcare",
   text_mkx087w5: "Localitate Incarcare",
   long_text_mkpx6q4a: "Adresa Incarcare",
+  text_mkx02gge: "Cod Postal Incarcare",
   dropdown_mktswwk3: "Tara Descarcare",
   text_mkx0g98f: "Localitate Descarcare",
   long_text_mkrbe20k: "Adresa Descarcare",
+  text_mkx0z0bc: "Cod Postal Descarcare",
   long_text_mkpwe0df: "Descriere Marfa",
   text_mksn2w06: "Greutate",
   numeric_mksek8d2: "Plata la (Client)",
@@ -111,7 +119,11 @@ const REQUIRED_FIELD_LABELS: Record<string, string> = {
 };
 
 const COMMON_TRANSPORT_FIELDS: FieldRule[] = [
+  { fieldId: "color_mktcr7h6", required: true, type: "status", section: "transport" },
   { fieldId: "color_mkse3amh", required: true, type: "status", section: "transport" },
+  { fieldId: "color_mktcvtpz", required: true, type: "status", section: "transport" },
+  { fieldId: "color_mktaev1d", required: true, type: "status", section: "transport" },
+  { fieldId: "deal_owner", required: true, type: "text", section: "transport" },
   { fieldId: "color_mkx1kx5j", required: true, type: "status", section: "transport" },
   { fieldId: "dropdown_mkx1naw3", required: true, type: "dropdown", section: "transport" },
   { fieldId: "color_mkse1tmc", required: true, type: "status", section: "transport" },
@@ -123,22 +135,25 @@ const COMMON_TRANSPORT_FIELDS: FieldRule[] = [
   { fieldId: "dropdown_mktsr9n2", required: true, type: "dropdown", section: "transport" },
   { fieldId: "text_mkx087w5", required: true, type: "text", section: "transport" },
   { fieldId: "long_text_mkpx6q4a", required: true, type: "text", section: "transport" },
+  { fieldId: "text_mkx02gge", required: true, type: "text", section: "transport" },
   { fieldId: "dropdown_mktswwk3", required: true, type: "dropdown", section: "transport" },
   { fieldId: "text_mkx0g98f", required: true, type: "text", section: "transport" },
   { fieldId: "long_text_mkrbe20k", required: true, type: "text", section: "transport" },
+  { fieldId: "text_mkx0z0bc", required: true, type: "text", section: "transport" },
   { fieldId: "long_text_mkpwe0df", required: true, type: "text", section: "transport" },
   { fieldId: "text_mksn2w06", required: true, type: "text", section: "transport" }
 ];
 
 const CLIENT_IDENTITY_FIELDS: FieldRule[] = [
+  { fieldId: "email_mkse8jyb", required: true, type: "email", section: "client" },
+  { fieldId: "email_mkvneqyg", required: true, type: "email", section: "client" },
   { fieldId: "board_relation_mkpw4bcs", required: true, type: "relation", section: "client" },
   { fieldId: "board_relation_mkshmkgt", required: true, type: "relation", section: "client" },
   { fieldId: "lookup_mksha4n0", required: true, type: "lookup", section: "client" },
   { fieldId: "lookup_mksh4wrs", required: true, type: "lookup", section: "client" },
   { fieldId: "lookup_mkxwwsax", required: true, type: "lookup", section: "client" },
   { fieldId: "lookup_mkxtmxv3", required: true, type: "lookup", section: "client" },
-  { fieldId: "lookup_mkxttcky", required: true, type: "lookup", section: "client" },
-  { fieldId: "lookup_mkyqf8ke", required: true, type: "email", section: "client" }
+  { fieldId: "lookup_mkxttcky", required: true, type: "lookup", section: "client" }
 ];
 
 const SUPPLIER_IDENTITY_FIELDS: FieldRule[] = [
@@ -151,20 +166,10 @@ const SUPPLIER_IDENTITY_FIELDS: FieldRule[] = [
 const CLIENT_PAYMENT_FIELDS: FieldRule[] = [
   { fieldId: "numeric_mksek8d2", required: true, type: "number", section: "payment" },
   { fieldId: "color_mksex1w8", required: true, type: "status", section: "payment" },
-  { fieldId: "color_mkseanqh", required: true, type: "status", section: "payment" },
-  { fieldId: "color_mkse642z", required: true, type: "status", section: "payment" }
+  { fieldId: "numeric_mksev08g", required: true, type: "number", section: "payment" }
 ];
 
-const SUPPLIER_PAYMENT_FIELDS: FieldRule[] = [
-  { fieldId: "numeric_mksev08g", required: true, type: "number", section: "payment" },
-  { fieldId: "color_mksed6qr", required: true, type: "status", section: "payment" },
-  { fieldId: "color_mm19awa4", required: true, type: "status", section: "payment" }
-];
-
-const SUPPLIER_DRIVER_FIELDS: FieldRule[] = [
-  { fieldId: "text_mksgp58v", required: true, type: "text", section: "driver" },
-  { fieldId: "text_mksgs3gd", required: true, type: "text", section: "driver" }
-];
+const SUPPLIER_PAYMENT_FIELDS: FieldRule[] = [...CLIENT_PAYMENT_FIELDS];
 
 const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
   "Client SRL": {
@@ -173,6 +178,7 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
     requiredFields: [
       ...CLIENT_IDENTITY_FIELDS,
       { fieldId: "deal_value", required: true, type: "number", section: "client" },
+      { fieldId: "numeric_mkpknkjp", required: true, type: "number", section: "client" },
       ...CLIENT_PAYMENT_FIELDS,
       ...COMMON_TRANSPORT_FIELDS
     ]
@@ -183,6 +189,7 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
     requiredFields: [
       ...CLIENT_IDENTITY_FIELDS,
       { fieldId: "deal_value", required: true, type: "number", section: "client" },
+      { fieldId: "numeric_mkpknkjp", required: true, type: "number", section: "client" },
       ...CLIENT_PAYMENT_FIELDS,
       ...COMMON_TRANSPORT_FIELDS
     ]
@@ -192,9 +199,9 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
     matchFieldRules: [{ fieldId: "color_mkt9as8p", expected: "SRL", section: "supplier" }],
     requiredFields: [
       ...SUPPLIER_IDENTITY_FIELDS,
+      { fieldId: "deal_value", required: true, type: "number", section: "supplier" },
       { fieldId: "numeric_mkpknkjp", required: true, type: "number", section: "supplier" },
       ...SUPPLIER_PAYMENT_FIELDS,
-      ...SUPPLIER_DRIVER_FIELDS,
       ...COMMON_TRANSPORT_FIELDS
     ]
   },
@@ -203,9 +210,9 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
     matchFieldRules: [{ fieldId: "color_mkt9as8p", expected: "GmbH", section: "supplier" }],
     requiredFields: [
       ...SUPPLIER_IDENTITY_FIELDS,
+      { fieldId: "deal_value", required: true, type: "number", section: "supplier" },
       { fieldId: "numeric_mkpknkjp", required: true, type: "number", section: "supplier" },
       ...SUPPLIER_PAYMENT_FIELDS,
-      ...SUPPLIER_DRIVER_FIELDS,
       ...COMMON_TRANSPORT_FIELDS
     ]
   },
