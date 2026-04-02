@@ -60,7 +60,7 @@ steps:
           --image "gcr.io/$PROJECT_ID/monday-doc-automation:$SHORT_SHA" \
           --platform "${_PLATFORM}" \
           --region "${_REGION}" \
-          ${AUTH_FLAG} \
+          $${AUTH_FLAG} \
           --cpu "${_CPU}" \
           --memory "${_MEMORY}" \
           --timeout "${_TIMEOUT}" \
