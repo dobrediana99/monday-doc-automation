@@ -208,7 +208,6 @@ Set these in the Cloud Build trigger (or via API):
 - `_REGION` (example `europe-west1`)
 - `_ALLOW_UNAUTHENTICATED` (`true` for Monday webhooks unless behind authenticated gateway)
 - `_APP_BASE_URL`
-- `_MONDAY_API_TOKEN`
 - `_MONDAY_API_URL` (default `https://api.monday.com/v2`)
 - `_WEBHOOK_SECRET` (optional but recommended)
 - `_GCS_BUCKET`
@@ -239,7 +238,7 @@ gcloud builds triggers create github \
   --repo-owner="<GITHUB_OWNER>" \
   --branch-pattern="^main$" \
   --build-config="cloudbuild.yaml" \
-  --substitutions=_SERVICE_NAME=monday-doc-automation,_REGION=europe-west1,_ALLOW_UNAUTHENTICATED=true,_APP_BASE_URL=https://<cloud-run-url>,_MONDAY_API_TOKEN=<token>,_GCS_BUCKET=<bucket>,_GMAIL_CLIENT_ID=<id>,_GMAIL_CLIENT_SECRET=<secret>,_GMAIL_REFRESH_TOKEN=<refresh>,_GMAIL_SENDER=<sender@example.com>
+  --substitutions=_SERVICE_NAME=monday-doc-automation,_REGION=europe-west1,_ALLOW_UNAUTHENTICATED=true,_APP_BASE_URL=https://<cloud-run-url>,_GCS_BUCKET=<bucket>,_GMAIL_CLIENT_ID=<id>,_GMAIL_CLIENT_SECRET=<secret>,_GMAIL_REFRESH_TOKEN=<refresh>,_GMAIL_SENDER=<sender@example.com>
 ```
 
 Low-cost tips:
@@ -251,8 +250,10 @@ Manual run example:
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
-  --substitutions=_SERVICE_NAME=monday-doc-automation,_REGION=europe-west1,_ALLOW_UNAUTHENTICATED=true,_APP_BASE_URL=https://<cloud-run-url>,_MONDAY_API_TOKEN=<token>,_GCS_BUCKET=<bucket>,_GMAIL_CLIENT_ID=<id>,_GMAIL_CLIENT_SECRET=<secret>,_GMAIL_REFRESH_TOKEN=<refresh>,_GMAIL_SENDER=<sender@example.com>
+  --substitutions=_SERVICE_NAME=monday-doc-automation,_REGION=europe-west1,_ALLOW_UNAUTHENTICATED=true,_APP_BASE_URL=https://<cloud-run-url>,_GCS_BUCKET=<bucket>,_GMAIL_CLIENT_ID=<id>,_GMAIL_CLIENT_SECRET=<secret>,_GMAIL_REFRESH_TOKEN=<refresh>,_GMAIL_SENDER=<sender@example.com>
 ```
+
+`MONDAY_API_TOKEN` is intentionally not managed by `cloudbuild.yaml` to avoid secret-vs-literal conflicts in Cloud Run revisions. Configure it manually in Cloud Run (recommended as Secret Manager secret env var).
 
 ### Validation behavior before generation
 
