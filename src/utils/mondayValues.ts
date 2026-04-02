@@ -2,6 +2,7 @@ import type { MondayColumnValue, MondayItem } from "../monday/mondayClient";
 
 interface ParsedColumnValue {
   labels: string[];
+  displayValue: string;
   hasSelection: boolean;
   hasLinkedItems: boolean;
 }
@@ -65,6 +66,17 @@ function collectLabelsFromUnknown(input: unknown, labels: Set<string>): void {
   if (Array.isArray(record.values)) {
     collectLabelsFromUnknown(record.values, labels);
   }
+
+  if (Array.isArray(record.mirrored_items)) {
+    collectLabelsFromUnknown(record.mirrored_items, labels);
+  }
+  if (Array.isArray(record.linked_items)) {
+    collectLabelsFromUnknown(record.linked_items, labels);
+  }
+}
+
+function normalizeDisplayValue(value: string | null | undefined): string {
+  return (value ?? "").trim();
 }
 
 export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnValue {
@@ -80,13 +92,30 @@ export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnV
 
   const parsed = safeJsonParse(column.value);
   collectLabelsFromUnknown(parsed, labels);
+  const directDisplayValue = normalizeDisplayValue(column.display_value);
+  if (directDisplayValue) {
+    labels.add(directDisplayValue);
+  }
 
   let hasLinkedItems = false;
   let hasSelection = labels.size > 0;
+  let displayValue = directDisplayValue;
   if (parsed && typeof parsed === "object") {
     const record = parsed as Record<string, unknown>;
     const linkedPulseIds = record.linkedPulseIds;
     if (Array.isArray(linkedPulseIds) && linkedPulseIds.length > 0) {
+      hasLinkedItems = true;
+      hasSelection = true;
+    }
+
+    const linkedItemIds = record.linked_item_ids;
+    if (Array.isArray(linkedItemIds) && linkedItemIds.length > 0) {
+      hasLinkedItems = true;
+      hasSelection = true;
+    }
+
+    const linkedItems = record.linked_items;
+    if (Array.isArray(linkedItems) && linkedItems.length > 0) {
       hasLinkedItems = true;
       hasSelection = true;
     }
@@ -100,10 +129,15 @@ export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnV
     if (Array.isArray(ids) && ids.length > 0) {
       hasSelection = true;
     }
+
+    if (!displayValue && typeof record.display_value === "string") {
+      displayValue = normalizeDisplayValue(record.display_value);
+    }
   }
 
   return {
     labels: Array.from(labels).filter(Boolean),
+    displayValue,
     hasSelection,
     hasLinkedItems
   };
@@ -116,6 +150,9 @@ export function extractColumnDisplayText(column: MondayColumnValue): string {
   }
 
   const parsed = parseMondayColumnValue(column);
+  if (parsed.displayValue) {
+    return parsed.displayValue;
+  }
   return parsed.labels.join(", ");
 }
 

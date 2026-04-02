@@ -9,6 +9,7 @@ export const GET_ITEM_BY_ID = `
       column_values {
         id
         text
+        display_value
         value
         type
       }
