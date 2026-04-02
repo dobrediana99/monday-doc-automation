@@ -95,10 +95,9 @@ export class DocumentGenerationFlow {
 
       const uploadColumn = getUploadPdfColumn(selectedValue);
       const uploadName = `${path.basename(templateFile, ".docx")}_${item.id}.pdf`;
-      const completionStatusColumn = uploadColumn === "file_mksefxnc" ? "color_mkse8v90" : "color_mksn3kgw";
 
       await this.mondayClient.uploadFile(item.id, uploadColumn, generatedPdf, uploadName);
-      await this.mondayClient.updateStatus(item.board.id, item.id, completionStatusColumn, "PDF Generated");
+      await this.trySetStatusIfLabelExists(item.board.id, item.id, triggerColumnId, "PDF Generated");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown generation error";
       await this.mondayClient.updateText(item.board.id, item.id, GENERATION_ERROR_TEXT_COLUMN, errorMessage);
