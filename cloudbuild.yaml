@@ -15,6 +15,7 @@ substitutions:
   _MIN_INSTANCES: "0"
   _APP_BASE_URL: ""
   _MONDAY_API_TOKEN: ""
+  _MONDAY_API_TOKEN_SECRET: ""
   _MONDAY_API_URL: https://api.monday.com/v2
   _WEBHOOK_SECRET: ""
   _GCS_BUCKET: ""
@@ -50,9 +51,24 @@ steps:
       - -c
       - |
         set -euo pipefail
-        AUTH_FLAG="--no-allow-unauthenticated"
+        auth_flag="--no-allow-unauthenticated"
         if [[ "${_ALLOW_UNAUTHENTICATED}" == "true" ]]; then
-          AUTH_FLAG="--allow-unauthenticated"
+          auth_flag="--allow-unauthenticated"
+        fi
+
+        if [[ -n "${_MONDAY_API_TOKEN}" && -n "${_MONDAY_API_TOKEN_SECRET}" ]]; then
+          echo "Set only one of _MONDAY_API_TOKEN or _MONDAY_API_TOKEN_SECRET." >&2
+          exit 1
+        fi
+
+        env_vars="NODE_ENV=production,PORT=8080,APP_BASE_URL=${_APP_BASE_URL},MONDAY_API_URL=${_MONDAY_API_URL},WEBHOOK_SECRET=${_WEBHOOK_SECRET},GCS_BUCKET=${_GCS_BUCKET},TEMPLATE_PREFIX=${_TEMPLATE_PREFIX},GOOGLE_CLOUD_PROJECT=${_GOOGLE_CLOUD_PROJECT},GMAIL_CLIENT_ID=${_GMAIL_CLIENT_ID},GMAIL_CLIENT_SECRET=${_GMAIL_CLIENT_SECRET},GMAIL_REDIRECT_URI=${_GMAIL_REDIRECT_URI},GMAIL_REFRESH_TOKEN=${_GMAIL_REFRESH_TOKEN},GMAIL_SENDER=${_GMAIL_SENDER},SIGN_TOKEN_TTL_MINUTES=${_SIGN_TOKEN_TTL_MINUTES},IDEMPOTENCY_TTL_MINUTES=${_IDEMPOTENCY_TTL_MINUTES}"
+        token_switch_args=()
+        if [[ -n "${_MONDAY_API_TOKEN_SECRET}" ]]; then
+          token_switch_args+=(--remove-env-vars "MONDAY_API_TOKEN")
+          token_switch_args+=(--update-secrets "MONDAY_API_TOKEN=${_MONDAY_API_TOKEN_SECRET}")
+        elif [[ -n "${_MONDAY_API_TOKEN}" ]]; then
+          token_switch_args+=(--remove-secrets "MONDAY_API_TOKEN")
+          env_vars="$${env_vars},MONDAY_API_TOKEN=${_MONDAY_API_TOKEN}"
         fi
 
         gcloud run deploy "${_SERVICE_NAME}" \
@@ -60,13 +76,14 @@ steps:
           --image "gcr.io/$PROJECT_ID/monday-doc-automation:$SHORT_SHA" \
           --platform "${_PLATFORM}" \
           --region "${_REGION}" \
-          $${AUTH_FLAG} \
+          "$${auth_flag}" \
           --cpu "${_CPU}" \
           --memory "${_MEMORY}" \
           --timeout "${_TIMEOUT}" \
           --max-instances "${_MAX_INSTANCES}" \
           --min-instances "${_MIN_INSTANCES}" \
-          --set-env-vars "NODE_ENV=production,PORT=8080,APP_BASE_URL=${_APP_BASE_URL},MONDAY_API_TOKEN=${_MONDAY_API_TOKEN},MONDAY_API_URL=${_MONDAY_API_URL},WEBHOOK_SECRET=${_WEBHOOK_SECRET},GCS_BUCKET=${_GCS_BUCKET},TEMPLATE_PREFIX=${_TEMPLATE_PREFIX},GOOGLE_CLOUD_PROJECT=${_GOOGLE_CLOUD_PROJECT},GMAIL_CLIENT_ID=${_GMAIL_CLIENT_ID},GMAIL_CLIENT_SECRET=${_GMAIL_CLIENT_SECRET},GMAIL_REDIRECT_URI=${_GMAIL_REDIRECT_URI},GMAIL_REFRESH_TOKEN=${_GMAIL_REFRESH_TOKEN},GMAIL_SENDER=${_GMAIL_SENDER},SIGN_TOKEN_TTL_MINUTES=${_SIGN_TOKEN_TTL_MINUTES},IDEMPOTENCY_TTL_MINUTES=${_IDEMPOTENCY_TTL_MINUTES}" \
+          --set-env-vars "$${env_vars}" \
+          "$${token_switch_args[@]}" \
           --quiet
 
 images:
