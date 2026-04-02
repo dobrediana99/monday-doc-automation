@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import {
   ADD_FILE_TO_COLUMN,
   GET_ITEM_BY_ID,
+  GET_STATUS_COLUMN_SETTINGS,
   UPDATE_LINK,
   UPDATE_STATUS,
   UPDATE_TEXT
@@ -66,6 +67,27 @@ export class MondayClient {
       columnId,
       value: JSON.stringify({ label })
     });
+  }
+
+  async hasStatusLabel(boardId: string, columnId: string, label: string): Promise<boolean> {
+    const data = await this.graphql<{
+      boards?: Array<{
+        columns?: Array<{ settings_str?: string | null }>;
+      }>;
+    }>(GET_STATUS_COLUMN_SETTINGS, { boardId: [boardId], columnIds: [columnId] });
+
+    const settingsStr = data.boards?.[0]?.columns?.[0]?.settings_str;
+    if (!settingsStr) {
+      return false;
+    }
+
+    try {
+      const parsed = JSON.parse(settingsStr) as { labels?: Record<string, string> };
+      const labels = Object.values(parsed.labels ?? {}).map((entry) => entry.trim().toLowerCase());
+      return labels.includes(label.trim().toLowerCase());
+    } catch {
+      return false;
+    }
   }
 
   async updateText(boardId: string, itemId: string, columnId: string, text: string): Promise<void> {

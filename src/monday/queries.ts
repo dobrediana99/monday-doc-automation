@@ -23,6 +23,18 @@ export const GET_ITEM_BY_ID = `
   }
 `;
 
+export const GET_STATUS_COLUMN_SETTINGS = `
+  query GetStatusColumnSettings($boardId: [ID!], $columnIds: [String!]) {
+    boards(ids: $boardId) {
+      id
+      columns(ids: $columnIds) {
+        id
+        settings_str
+      }
+    }
+  }
+`;
+
 export const UPDATE_STATUS = `
   mutation UpdateStatus($boardId: ID!, $itemId: ID!, $columnId: String!, $value: JSON!) {
     change_column_value(
