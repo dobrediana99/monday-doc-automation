@@ -59,7 +59,7 @@ export function createMondayWebhookRouter(params: {
           return res.status(200).json({ ok: true, skipped: "unsupported_generation_value" });
         }
 
-        await params.documentFlow.process(itemId, newStatus);
+        await params.documentFlow.process(itemId, newStatus, event.columnId);
         return res.status(200).json({ ok: true, workflow: "document_generation" });
       }
 

@@ -12,7 +12,11 @@ export const GENERATION_TRIGGER_COLUMNS = new Set([
 
 export const SIGN_TRIGGER_COLUMN = "color_mkshk7ap";
 
-export const GENERATION_ALLOWED_VALUES = new Set(Object.keys(TEMPLATE_MAPPING));
+export const GENERATION_EXPLICITLY_UNSUPPORTED_VALUES = new Set(["Trans. EOOD"]);
+export const GENERATION_ALLOWED_VALUES = new Set([
+  ...Object.keys(TEMPLATE_MAPPING),
+  ...GENERATION_EXPLICITLY_UNSUPPORTED_VALUES
+]);
 
 export const SIGN_ALLOWED_VALUES = new Set([
   "Trimite Client SRL",

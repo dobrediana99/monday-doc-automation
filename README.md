@@ -27,23 +27,26 @@ Supported values:
 - `Client GmbH`
 - `Trans. SRL`
 - `Trans. GmbH`
+- `Trans. EOOD` (explicitly rejected with clear error until templates/mapping are implemented)
 
 Process:
 1. Receive webhook
 2. Fetch full item data from Monday GraphQL API
-3. Map item column values to template model
-4. Download DOCX template from GCS
-5. Fill placeholders with `docxtemplater`
-6. Convert DOCX to PDF using LibreOffice (`soffice --headless --convert-to pdf`)
-7. Upload PDF to Monday file column:
+3. Run strict pre-generation validation (centralized, variant-aware)
+4. Map item column values to template model
+5. Download DOCX template from GCS
+6. Fill placeholders with `docxtemplater`
+7. Convert DOCX to PDF using LibreOffice (`soffice --headless --convert-to pdf`)
+8. Upload PDF to Monday file column:
    - Client -> `file_mksefxnc`
    - Supplier -> `file_mksh4n9q`
-8. Update status to `PDF Generated` (column `color_mkse8v90`)
-9. On error: update error text column `text_mky32wv3`
+9. Update status to `PDF Generated` (column `color_mkse8v90`)
+10. On error: update error text column `text_mky32wv3`
 
 Notes:
 - No email is sent in this flow
 - No signing links are created in this flow
+- If validation fails, no document is generated/uploaded, `text_mky32wv3` is updated with a Romanian grouped message, and the trigger status is set to `Eroare` if that label exists.
 
 ---
 
@@ -190,35 +193,82 @@ npm run build
 
 ## Docker / Cloud Run
 
-### Build image
+### Build + deploy with Cloud Build trigger (`cloudbuild.yaml`)
+
+The repository includes a production-ready root `cloudbuild.yaml` that:
+- builds Docker image from the root `Dockerfile`
+- pushes image as `gcr.io/$PROJECT_ID/monday-doc-automation:$SHORT_SHA`
+- deploys Cloud Run service with configurable substitutions
+- sets runtime env vars required by this app
+
+#### Required trigger substitutions
+
+Set these in the Cloud Build trigger (or via API):
+- `_SERVICE_NAME` (default `monday-doc-automation`)
+- `_REGION` (example `europe-west1`)
+- `_ALLOW_UNAUTHENTICATED` (`true` for Monday webhooks unless behind authenticated gateway)
+- `_APP_BASE_URL`
+- `_MONDAY_API_TOKEN`
+- `_MONDAY_API_URL` (default `https://api.monday.com/v2`)
+- `_WEBHOOK_SECRET` (optional but recommended)
+- `_GCS_BUCKET`
+- `_TEMPLATE_PREFIX` (default `templates`)
+- `_GOOGLE_CLOUD_PROJECT` (default `$PROJECT_ID`)
+- `_GMAIL_CLIENT_ID`
+- `_GMAIL_CLIENT_SECRET`
+- `_GMAIL_REDIRECT_URI`
+- `_GMAIL_REFRESH_TOKEN`
+- `_GMAIL_SENDER`
+- `_SIGN_TOKEN_TTL_MINUTES`
+- `_IDEMPOTENCY_TTL_MINUTES`
+
+Optional runtime/deploy tuning substitutions:
+- `_CPU` (default `1`)
+- `_MEMORY` (default `512Mi`)
+- `_TIMEOUT` (default `300s`)
+- `_MAX_INSTANCES` (default `10`)
+- `_MIN_INSTANCES` (default `0`)
+- `_PLATFORM` (default `managed`)
+
+#### Example trigger configuration
 
 ```bash
-docker build -t gcr.io/<PROJECT_ID>/monday-doc-automation:latest .
-```
-
-### Push image
-
-```bash
-docker push gcr.io/<PROJECT_ID>/monday-doc-automation:latest
-```
-
-### Deploy to Cloud Run
-
-```bash
-gcloud run deploy monday-doc-automation \
-  --image gcr.io/<PROJECT_ID>/monday-doc-automation:latest \
-  --platform managed \
-  --region <REGION> \
-  --allow-unauthenticated \
-  --memory 512Mi \
-  --cpu 1 \
-  --set-env-vars NODE_ENV=production,PORT=8080,APP_BASE_URL=https://<SERVICE_URL>,MONDAY_API_TOKEN=<TOKEN>,MONDAY_API_URL=https://api.monday.com/v2,GCS_BUCKET=<BUCKET>,TEMPLATE_PREFIX=templates,GMAIL_CLIENT_ID=<ID>,GMAIL_CLIENT_SECRET=<SECRET>,GMAIL_REDIRECT_URI=<URI>,GMAIL_REFRESH_TOKEN=<REFRESH>,GMAIL_SENDER=<SENDER>
+gcloud builds triggers create github \
+  --name="deploy-monday-doc-automation" \
+  --repo-name="<REPO_NAME>" \
+  --repo-owner="<GITHUB_OWNER>" \
+  --branch-pattern="^main$" \
+  --build-config="cloudbuild.yaml" \
+  --substitutions=_SERVICE_NAME=monday-doc-automation,_REGION=europe-west1,_ALLOW_UNAUTHENTICATED=true,_APP_BASE_URL=https://<cloud-run-url>,_MONDAY_API_TOKEN=<token>,_GCS_BUCKET=<bucket>,_GMAIL_CLIENT_ID=<id>,_GMAIL_CLIENT_SECRET=<secret>,_GMAIL_REFRESH_TOKEN=<refresh>,_GMAIL_SENDER=<sender@example.com>
 ```
 
 Low-cost tips:
 - Keep min instances at 0
 - Use request-based CPU
 - Use short timeouts and small memory unless template payloads require more
+
+Manual run example:
+
+```bash
+gcloud builds submit --config cloudbuild.yaml \
+  --substitutions=_SERVICE_NAME=monday-doc-automation,_REGION=europe-west1,_ALLOW_UNAUTHENTICATED=true,_APP_BASE_URL=https://<cloud-run-url>,_MONDAY_API_TOKEN=<token>,_GCS_BUCKET=<bucket>,_GMAIL_CLIENT_ID=<id>,_GMAIL_CLIENT_SECRET=<secret>,_GMAIL_REFRESH_TOKEN=<refresh>,_GMAIL_SENDER=<sender@example.com>
+```
+
+### Validation behavior before generation
+
+Generation validation is implemented centrally in `src/validation/generationValidation.ts`.
+
+- Runs immediately after item fetch and before template selection/docx/pdf/upload.
+- Uses normalized parsing for Monday values (status, dropdown, relation, lookup, numeric, email).
+- Placeholder values are treated as invalid for required fields:
+  - empty / null / undefined
+  - `Alege!`, `Alege`
+  - `Apasa Aici!`, `Apasa Aici`
+- On failure:
+  - generation stops immediately
+  - no file upload is performed
+  - `text_mky32wv3` receives deterministic Romanian grouped error text
+  - trigger status (`color_mky3xvmr` or `color_mksh6s1y`) is set to `Eroare` if label exists
 
 ---
 
