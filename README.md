@@ -199,7 +199,7 @@ The repository includes a production-ready root `cloudbuild.yaml` that:
 - builds Docker image from the root `Dockerfile`
 - pushes image as `gcr.io/$PROJECT_ID/monday-doc-automation:$SHORT_SHA`
 - deploys Cloud Run service with configurable substitutions
-- sets runtime env vars required by this app
+- updates service image and deploy settings only (runtime env vars/secrets are managed in Cloud Run UI)
 
 #### Required trigger substitutions
 
@@ -207,19 +207,6 @@ Set these in the Cloud Build trigger (or via API):
 - `_SERVICE_NAME` (default `monday-doc-automation`)
 - `_REGION` (example `europe-west1`)
 - `_ALLOW_UNAUTHENTICATED` (`true` for Monday webhooks unless behind authenticated gateway)
-- `_APP_BASE_URL`
-- `_MONDAY_API_URL` (default `https://api.monday.com/v2`)
-- `_WEBHOOK_SECRET` (optional but recommended)
-- `_GCS_BUCKET`
-- `_TEMPLATE_PREFIX` (default `templates`)
-- `_GOOGLE_CLOUD_PROJECT` (default `$PROJECT_ID`)
-- `_GMAIL_CLIENT_ID`
-- `_GMAIL_CLIENT_SECRET`
-- `_GMAIL_REDIRECT_URI`
-- `_GMAIL_REFRESH_TOKEN`
-- `_GMAIL_SENDER`
-- `_SIGN_TOKEN_TTL_MINUTES`
-- `_IDEMPOTENCY_TTL_MINUTES`
 
 Optional runtime/deploy tuning substitutions:
 - `_CPU` (default `1`)
@@ -238,7 +225,7 @@ gcloud builds triggers create github \
   --repo-owner="<GITHUB_OWNER>" \
   --branch-pattern="^main$" \
   --build-config="cloudbuild.yaml" \
-  --substitutions=_SERVICE_NAME=monday-doc-automation,_REGION=europe-west1,_ALLOW_UNAUTHENTICATED=true,_APP_BASE_URL=https://<cloud-run-url>,_GCS_BUCKET=<bucket>,_GMAIL_CLIENT_ID=<id>,_GMAIL_CLIENT_SECRET=<secret>,_GMAIL_REFRESH_TOKEN=<refresh>,_GMAIL_SENDER=<sender@example.com>
+  --substitutions=_SERVICE_NAME=monday-doc-automation,_REGION=europe-west1,_ALLOW_UNAUTHENTICATED=true
 ```
 
 Low-cost tips:
@@ -250,10 +237,10 @@ Manual run example:
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
-  --substitutions=_SERVICE_NAME=monday-doc-automation,_REGION=europe-west1,_ALLOW_UNAUTHENTICATED=true,_APP_BASE_URL=https://<cloud-run-url>,_GCS_BUCKET=<bucket>,_GMAIL_CLIENT_ID=<id>,_GMAIL_CLIENT_SECRET=<secret>,_GMAIL_REFRESH_TOKEN=<refresh>,_GMAIL_SENDER=<sender@example.com>
+  --substitutions=_SERVICE_NAME=monday-doc-automation,_REGION=europe-west1,_ALLOW_UNAUTHENTICATED=true
 ```
 
-`MONDAY_API_TOKEN` is intentionally not managed by `cloudbuild.yaml` to avoid secret-vs-literal conflicts in Cloud Run revisions. Configure it manually in Cloud Run (recommended as Secret Manager secret env var).
+All runtime environment variables and secrets (including `MONDAY_API_TOKEN`, `GMAIL_*`, `APP_BASE_URL`, etc.) are intentionally not managed by `cloudbuild.yaml` to avoid secret-vs-literal type conflicts between revisions. Configure them manually in Cloud Run (recommended with Secret Manager where appropriate).
 
 ### Validation behavior before generation
 
