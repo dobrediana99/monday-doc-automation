@@ -13,6 +13,7 @@ import {
 export interface MondayColumnValue {
   id: string;
   text: string | null;
+  display_value?: string | null;
   value: string | null;
   type: string;
 }
