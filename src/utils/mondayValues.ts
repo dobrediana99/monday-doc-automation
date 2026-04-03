@@ -3,8 +3,10 @@ import type { MondayColumnValue, MondayItem } from "../monday/mondayClient";
 interface ParsedColumnValue {
   labels: string[];
   displayValue: string;
+  normalizedText: string;
   hasSelection: boolean;
   hasLinkedItems: boolean;
+  hasDropdownValues: boolean;
 }
 
 type ParsedRecord = Record<string, unknown>;
@@ -118,6 +120,7 @@ function collectTypedLabels(
       }
       break;
     case "mirror":
+    case "lookup":
       addLabel(labels, parsed.display_value);
       break;
     case "status":
@@ -134,7 +137,7 @@ function collectTypedLabels(
 
 export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnValue {
   const labels = new Set<string>();
-  const directText = (column.text ?? "").trim();
+  const directText = normalizeDisplayValue(column.text);
   if (directText) {
     directText
       .split(",")
@@ -157,6 +160,7 @@ export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnV
   let hasLinkedItems = false;
   let hasSelection = labels.size > 0;
   let displayValue = directDisplayValue;
+  let hasDropdownValues = false;
   if (parsedRecord) {
     const record = parsedRecord;
     const linkedPulseIds = record.linkedPulseIds;
@@ -174,6 +178,12 @@ export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnV
     const linkedItems = record.linked_items;
     if (Array.isArray(linkedItems) && linkedItems.length > 0) {
       hasLinkedItems = true;
+      hasSelection = true;
+    }
+
+    const dropdownValues = record.values;
+    if (Array.isArray(dropdownValues) && dropdownValues.length > 0) {
+      hasDropdownValues = true;
       hasSelection = true;
     }
 
@@ -195,8 +205,10 @@ export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnV
   return {
     labels: Array.from(labels).filter(Boolean),
     displayValue,
+    normalizedText: directText,
     hasSelection,
-    hasLinkedItems
+    hasLinkedItems,
+    hasDropdownValues
   };
 }
 

@@ -171,6 +171,10 @@ const CLIENT_PAYMENT_FIELDS: FieldRule[] = [
 
 const SUPPLIER_PAYMENT_FIELDS: FieldRule[] = [...CLIENT_PAYMENT_FIELDS];
 
+const SUPPLIER_DRIVER_FIELDS: FieldRule[] = [
+  { fieldId: "text_mksgs3gd", required: true, type: "text", section: "driver" }
+];
+
 const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
   "Client SRL": {
     variant: "Client SRL",
@@ -202,6 +206,7 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
       { fieldId: "deal_value", required: true, type: "number", section: "supplier" },
       { fieldId: "numeric_mkpknkjp", required: true, type: "number", section: "supplier" },
       ...SUPPLIER_PAYMENT_FIELDS,
+      ...SUPPLIER_DRIVER_FIELDS,
       ...COMMON_TRANSPORT_FIELDS
     ]
   },
@@ -213,6 +218,7 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
       { fieldId: "deal_value", required: true, type: "number", section: "supplier" },
       { fieldId: "numeric_mkpknkjp", required: true, type: "number", section: "supplier" },
       ...SUPPLIER_PAYMENT_FIELDS,
+      ...SUPPLIER_DRIVER_FIELDS,
       ...COMMON_TRANSPORT_FIELDS
     ]
   },
@@ -253,6 +259,12 @@ function getColumnDisplayValue(column?: MondayColumnValue): string {
     return "";
   }
   const parsed = parseMondayColumnValue(column);
+  if (parsed.displayValue) {
+    return parsed.displayValue;
+  }
+  if (parsed.normalizedText) {
+    return parsed.normalizedText;
+  }
   if (parsed.labels.length > 0) {
     return parsed.labels.join(", ");
   }
@@ -267,16 +279,73 @@ function hasRelationValue(column?: MondayColumnValue): boolean {
   return parsed.hasLinkedItems || parsed.hasSelection;
 }
 
+function getColumnRawValue(column?: MondayColumnValue): string {
+  if (!column) {
+    return "";
+  }
+  return JSON.stringify({
+    id: column.id,
+    type: column.type,
+    text: column.text,
+    display_value: column.display_value ?? null,
+    value: column.value
+  });
+}
+
+function logValidationDecision(params: {
+  itemId: string;
+  selectedValue: string;
+  fieldId: string;
+  fieldType: FieldType;
+  reason: "missing" | "invalid";
+  rawValue: string;
+  normalizedValue: string;
+  expected?: string;
+}): void {
+  console.warn(
+    JSON.stringify({
+      event: "generation_field_validation_failed",
+      itemId: params.itemId,
+      selectedValue: params.selectedValue,
+      fieldId: params.fieldId,
+      fieldType: params.fieldType,
+      reason: params.reason,
+      rawValue: params.rawValue,
+      normalizedValue: params.normalizedValue,
+      expected: params.expected
+    })
+  );
+}
+
 function hasRequiredFieldValue(column: MondayColumnValue | undefined, type: FieldType): boolean {
   if (!column) {
     return false;
   }
 
+  const parsed = parseMondayColumnValue(column);
+
   if (type === "relation") {
-    return hasRelationValue(column);
+    return parsed.hasLinkedItems || parsed.hasSelection;
   }
 
-  const display = getColumnDisplayValue(column);
+  if (type === "lookup") {
+    return parsed.displayValue.length > 0 || parsed.normalizedText.length > 0;
+  }
+
+  if (type === "dropdown") {
+    return parsed.hasDropdownValues || parsed.normalizedText.length > 0;
+  }
+
+  if (type === "text") {
+    return parsed.normalizedText.length > 0;
+  }
+
+  if (type === "status") {
+    const statusValue = parsed.displayValue || parsed.normalizedText;
+    return statusValue.length > 0 && !isInvalidStatusChoice(statusValue);
+  }
+
+  const display = parsed.displayValue || parsed.normalizedText || parsed.labels.join(", ");
   if (isEmptyMondayValue(display) || isInvalidStatusChoice(display)) {
     return false;
   }
@@ -389,7 +458,18 @@ export function validateGenerationRequest(params: {
   for (const matchRule of variantRules.matchFieldRules) {
     const column = columnIndex.get(matchRule.fieldId);
     const displayValue = getColumnDisplayValue(column);
+    const rawValue = getColumnRawValue(column);
     if (isEmptyMondayValue(displayValue) || isInvalidStatusChoice(displayValue)) {
+      logValidationDecision({
+        itemId: item.id,
+        selectedValue,
+        fieldId: matchRule.fieldId,
+        fieldType: "status",
+        reason: "missing",
+        rawValue,
+        normalizedValue: displayValue,
+        expected: matchRule.expected
+      });
       issues.push({
         fieldId: matchRule.fieldId,
         fieldLabel: getFieldLabel(matchRule.fieldId),
@@ -406,6 +486,16 @@ export function validateGenerationRequest(params: {
       .map((entry) => entry.trim())
       .some((entry) => entry.toLowerCase() === matchRule.expected.toLowerCase());
     if (!matches) {
+      logValidationDecision({
+        itemId: item.id,
+        selectedValue,
+        fieldId: matchRule.fieldId,
+        fieldType: "status",
+        reason: "invalid",
+        rawValue,
+        normalizedValue: displayValue,
+        expected: matchRule.expected
+      });
       issues.push({
         fieldId: matchRule.fieldId,
         fieldLabel: getFieldLabel(matchRule.fieldId),
@@ -423,14 +513,25 @@ export function validateGenerationRequest(params: {
     }
     const column = columnIndex.get(rule.fieldId);
     const displayValue = getColumnDisplayValue(column);
+    const rawValue = getColumnRawValue(column);
     const hasValue = hasRequiredFieldValue(column, rule.type);
     if (!hasValue) {
+      const reason =
+        isEmptyMondayValue(displayValue) || isInvalidStatusChoice(displayValue) ? "missing" : "invalid";
+      logValidationDecision({
+        itemId: item.id,
+        selectedValue,
+        fieldId: rule.fieldId,
+        fieldType: rule.type,
+        reason,
+        rawValue,
+        normalizedValue: displayValue
+      });
       issues.push({
         fieldId: rule.fieldId,
         fieldLabel: getFieldLabel(rule.fieldId),
         section: rule.section,
-        reason:
-          isEmptyMondayValue(displayValue) || isInvalidStatusChoice(displayValue) ? "missing" : "invalid",
+        reason,
         value: displayValue
       });
       continue;
@@ -439,6 +540,16 @@ export function validateGenerationRequest(params: {
     if (rule.allowedValues && rule.allowedValues.length > 0) {
       const normalized = displayValue.toLowerCase();
       if (!rule.allowedValues.some((allowed) => allowed.toLowerCase() === normalized)) {
+        logValidationDecision({
+          itemId: item.id,
+          selectedValue,
+          fieldId: rule.fieldId,
+          fieldType: rule.type,
+          reason: "invalid",
+          rawValue,
+          normalizedValue: displayValue,
+          expected: rule.allowedValues.join(" / ")
+        });
         issues.push({
           fieldId: rule.fieldId,
           fieldLabel: getFieldLabel(rule.fieldId),
