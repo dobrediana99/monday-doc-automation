@@ -114,8 +114,7 @@ const REQUIRED_FIELD_LABELS: Record<string, string> = {
   numeric_mksev08g: "Plata la (Furnizor)",
   color_mksed6qr: "Conditii de Plata Furnizor",
   color_mm19awa4: "Plata de la scan?",
-  text_mksgp58v: "Nr. Auto",
-  text_mksgs3gd: "Nume Sofer"
+  text_mksgp58v: "Nr. Auto"
 };
 
 const COMMON_TRANSPORT_FIELDS: FieldRule[] = [
@@ -171,10 +170,6 @@ const CLIENT_PAYMENT_FIELDS: FieldRule[] = [
 
 const SUPPLIER_PAYMENT_FIELDS: FieldRule[] = [...CLIENT_PAYMENT_FIELDS];
 
-const SUPPLIER_DRIVER_FIELDS: FieldRule[] = [
-  { fieldId: "text_mksgs3gd", required: true, type: "text", section: "driver" }
-];
-
 const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
   "Client SRL": {
     variant: "Client SRL",
@@ -206,7 +201,6 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
       { fieldId: "deal_value", required: true, type: "number", section: "supplier" },
       { fieldId: "numeric_mkpknkjp", required: true, type: "number", section: "supplier" },
       ...SUPPLIER_PAYMENT_FIELDS,
-      ...SUPPLIER_DRIVER_FIELDS,
       ...COMMON_TRANSPORT_FIELDS
     ]
   },
@@ -218,7 +212,6 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
       { fieldId: "deal_value", required: true, type: "number", section: "supplier" },
       { fieldId: "numeric_mkpknkjp", required: true, type: "number", section: "supplier" },
       ...SUPPLIER_PAYMENT_FIELDS,
-      ...SUPPLIER_DRIVER_FIELDS,
       ...COMMON_TRANSPORT_FIELDS
     ]
   },
