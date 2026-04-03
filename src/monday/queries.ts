@@ -9,9 +9,24 @@ export const GET_ITEM_BY_ID = `
       column_values {
         id
         text
-        display_value
         value
         type
+        ... on MirrorValue {
+          display_value
+        }
+        ... on BoardRelationValue {
+          display_value
+          linked_item_ids
+        }
+        ... on DependencyValue {
+          display_value
+        }
+        ... on FormulaValue {
+          display_value
+        }
+        ... on SubtasksValue {
+          display_value
+        }
       }
       assets {
         id
