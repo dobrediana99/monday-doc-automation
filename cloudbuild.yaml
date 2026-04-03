@@ -8,6 +8,7 @@ substitutions:
   _REGION: europe-west1
   _PLATFORM: managed
   _ALLOW_UNAUTHENTICATED: "true"
+  _APP_BASE_URL: https://monday-doc-automation-358252352531.europe-west1.run.app
   _CPU: "1"
   _MEMORY: 512Mi
   _TIMEOUT: 300s
@@ -52,6 +53,7 @@ steps:
           --timeout "${_TIMEOUT}" \
           --max-instances "${_MAX_INSTANCES}" \
           --min-instances "${_MIN_INSTANCES}" \
+          --update-env-vars "APP_BASE_URL=${_APP_BASE_URL}" \
           --quiet
 
 images:
