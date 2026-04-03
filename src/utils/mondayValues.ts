@@ -7,6 +7,8 @@ interface ParsedColumnValue {
   hasLinkedItems: boolean;
 }
 
+type ParsedRecord = Record<string, unknown>;
+
 function safeJsonParse(value: string | null): unknown {
   if (!value) {
     return null;
@@ -79,6 +81,57 @@ function normalizeDisplayValue(value: string | null | undefined): string {
   return (value ?? "").trim();
 }
 
+function addLabel(labels: Set<string>, value: unknown): void {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    labels.add(String(value));
+    return;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed) {
+      labels.add(trimmed);
+    }
+  }
+}
+
+function collectTypedLabels(
+  column: MondayColumnValue,
+  parsed: ParsedRecord | null,
+  labels: Set<string>
+): void {
+  if (!parsed) {
+    return;
+  }
+
+  switch (column.type) {
+    case "numbers":
+      addLabel(labels, parsed.number);
+      addLabel(labels, parsed.value);
+      break;
+    case "email":
+      addLabel(labels, parsed.email);
+      addLabel(labels, parsed.text);
+      break;
+    case "board_relation":
+      if (Array.isArray(parsed.linked_item_ids) && parsed.linked_item_ids.length > 0) {
+        labels.add("linked_item");
+      }
+      break;
+    case "mirror":
+      addLabel(labels, parsed.display_value);
+      break;
+    case "status":
+    case "dropdown":
+    case "text":
+    case "long_text":
+      addLabel(labels, parsed.text);
+      addLabel(labels, parsed.display_value);
+      break;
+    default:
+      break;
+  }
+}
+
 export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnValue {
   const labels = new Set<string>();
   const directText = (column.text ?? "").trim();
@@ -90,8 +143,12 @@ export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnV
       .forEach((entry) => labels.add(entry));
   }
 
-  const parsed = safeJsonParse(column.value);
-  collectLabelsFromUnknown(parsed, labels);
+  const parsedUnknown = safeJsonParse(column.value);
+  const parsedRecord = parsedUnknown && typeof parsedUnknown === "object"
+    ? (parsedUnknown as ParsedRecord)
+    : null;
+  collectLabelsFromUnknown(parsedRecord, labels);
+  collectTypedLabels(column, parsedRecord, labels);
   const directDisplayValue = normalizeDisplayValue(column.display_value);
   if (directDisplayValue) {
     labels.add(directDisplayValue);
@@ -100,8 +157,8 @@ export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnV
   let hasLinkedItems = false;
   let hasSelection = labels.size > 0;
   let displayValue = directDisplayValue;
-  if (parsed && typeof parsed === "object") {
-    const record = parsed as Record<string, unknown>;
+  if (parsedRecord) {
+    const record = parsedRecord;
     const linkedPulseIds = record.linkedPulseIds;
     if (Array.isArray(linkedPulseIds) && linkedPulseIds.length > 0) {
       hasLinkedItems = true;
