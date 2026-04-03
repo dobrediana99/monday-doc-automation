@@ -75,6 +75,18 @@ export function createMondayWebhookRouter(params: {
       return res.status(200).json({ ok: true, skipped: "irrelevant_column" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Webhook processing failed";
+      if (error instanceof Error) {
+        console.error(
+          JSON.stringify({
+            event: "webhook_processing_error",
+            itemId,
+            columnId: event.columnId,
+            newStatus,
+            message: error.message,
+            stack: error.stack ?? null
+          })
+        );
+      }
       return res.status(500).json({ error: message });
     }
   });
