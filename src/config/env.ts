@@ -12,7 +12,6 @@ const EnvSchema = z.object({
   MONDAY_API_URL: z.string().url().default("https://api.monday.com/v2"),
 
   GCS_BUCKET: z.string().min(1),
-  TEMPLATE_PREFIX: z.string().default("templates"),
   GOOGLE_CLOUD_PROJECT: z.string().optional(),
 
   GMAIL_CLIENT_ID: z.string().min(1),

@@ -31,8 +31,7 @@ export class DocumentGenerationFlow {
     private readonly mondayClient: MondayClient,
     private readonly gcsService: GcsService,
     private readonly templateService: TemplateService,
-    private readonly pdfService: PdfService,
-    private readonly templatePrefix: string
+    private readonly pdfService: PdfService
   ) {}
 
   async process(itemId: string, selectedValue: string, triggerColumnId: string): Promise<void> {
@@ -84,7 +83,7 @@ export class DocumentGenerationFlow {
     const model = toModel(item);
     const tmpFiles: string[] = [];
     try {
-      const templatePath = await this.gcsService.downloadTemplateToTmp(this.templatePrefix, templateFile);
+      const templatePath = await this.gcsService.downloadTemplateToTmp(templateFile);
       tmpFiles.push(templatePath);
 
       const generatedDocx = await this.templateService.fillTemplate(templatePath, model);

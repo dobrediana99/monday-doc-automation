@@ -9,10 +9,17 @@ export class GcsService {
     this.storage = new Storage();
   }
 
-  async downloadTemplateToTmp(templatePrefix: string, templateFile: string): Promise<string> {
-    const sourcePath = `${templatePrefix}/${templateFile}`;
-    const destination = path.join("/tmp", `${Date.now()}-${templateFile}`);
-    await this.storage.bucket(this.bucketName).file(sourcePath).download({
+  async downloadTemplateToTmp(objectName: string): Promise<string> {
+    console.info(
+      JSON.stringify({
+        event: "gcs_template_download_start",
+        bucket: this.bucketName,
+        objectName,
+        gsUri: `gs://${this.bucketName}/${objectName}`
+      })
+    );
+    const destination = path.join("/tmp", `${Date.now()}-${objectName}`);
+    await this.storage.bucket(this.bucketName).file(objectName).download({
       destination
     });
     return destination;

@@ -34,7 +34,7 @@ Process:
 2. Fetch full item data from Monday GraphQL API
 3. Run strict pre-generation validation (centralized, variant-aware)
 4. Map item column values to template model
-5. Download DOCX template from GCS
+5. Download DOCX template from GCS (`gs://<GCS_BUCKET>/<filename>` — objects live at bucket root, filename from template mapping)
 6. Fill placeholders with `docxtemplater`
 7. Convert DOCX to PDF using LibreOffice (`soffice --headless --convert-to pdf`)
 8. Upload PDF to Monday file column:
@@ -152,7 +152,6 @@ MONDAY_API_URL=https://api.monday.com/v2
 WEBHOOK_SECRET=optional-shared-secret
 
 GCS_BUCKET=your-template-bucket
-TEMPLATE_PREFIX=templates
 GOOGLE_CLOUD_PROJECT=your-gcp-project
 
 GMAIL_CLIENT_ID=...

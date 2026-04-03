@@ -31,8 +31,7 @@ const documentFlow = new DocumentGenerationFlow(
   mondayClient,
   gcsService,
   templateService,
-  pdfService,
-  env.TEMPLATE_PREFIX
+  pdfService
 );
 
 const signingService = new SigningService(env.SIGN_TOKEN_TTL_MINUTES * 60_000);
