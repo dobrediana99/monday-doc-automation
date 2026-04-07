@@ -392,8 +392,20 @@ function asUnsupportedVariantResult(selectedValue: string): GenerationValidation
   };
 }
 
-function buildGroupedErrorMessage(issues: ValidationIssue[]): string {
-  const bySection: Record<ValidationSection, string[]> = {
+const SECTIONS_IN_ORDER: Array<{ key: ValidationSection; title: string }> = [
+  { key: "client", title: "Date client" },
+  { key: "supplier", title: "Date furnizor" },
+  { key: "transport", title: "Date transport" },
+  { key: "payment", title: "Date plata" },
+  { key: "driver", title: "Date sofer/vehicul" },
+  { key: "trigger", title: "Date trigger" }
+];
+
+function collectDedupedIssuesBySection(
+  issues: ValidationIssue[],
+  reason: "missing" | "invalid"
+): Record<ValidationSection, ValidationIssue[]> {
+  const bySection: Record<ValidationSection, ValidationIssue[]> = {
     trigger: [],
     client: [],
     supplier: [],
@@ -401,33 +413,76 @@ function buildGroupedErrorMessage(issues: ValidationIssue[]): string {
     payment: [],
     driver: []
   };
+  const seenFieldIds: Record<ValidationSection, Set<string>> = {
+    trigger: new Set(),
+    client: new Set(),
+    supplier: new Set(),
+    transport: new Set(),
+    payment: new Set(),
+    driver: new Set()
+  };
 
   for (const issue of issues) {
-    if (!bySection[issue.section].includes(issue.fieldLabel)) {
-      bySection[issue.section].push(issue.fieldLabel);
+    if (issue.reason !== reason) {
+      continue;
     }
+    const seen = seenFieldIds[issue.section];
+    if (seen.has(issue.fieldId)) {
+      continue;
+    }
+    seen.add(issue.fieldId);
+    bySection[issue.section].push(issue);
   }
 
-  const sectionsInOrder: Array<{ key: ValidationSection; title: string }> = [
-    { key: "client", title: "Date client" },
-    { key: "supplier", title: "Date furnizor" },
-    { key: "transport", title: "Date transport" },
-    { key: "payment", title: "Date plata" },
-    { key: "driver", title: "Date sofer/vehicul" },
-    { key: "trigger", title: "Date trigger" }
-  ];
+  return bySection;
+}
 
-  const sectionFragments = sectionsInOrder
-    .filter((entry) => bySection[entry.key].length > 0)
-    .map((entry) => `${entry.title}: ${bySection[entry.key].join(", ")}`);
+function formatInvalidFieldEntry(issue: ValidationIssue): string {
+  const current = normalizeText(issue.value);
+  const expected = normalizeText(issue.expected);
+  const detailParts: string[] = [];
+  if (current.length > 0) {
+    detailParts.push(`valoare curenta: "${current}"`);
+  }
+  if (expected.length > 0) {
+    detailParts.push(`valoare asteptata: "${expected}"`);
+  }
+  if (detailParts.length === 0) {
+    return issue.fieldLabel;
+  }
+  return `${issue.fieldLabel} (${detailParts.join(", ")})`;
+}
 
-  if (sectionFragments.length === 0) {
+function buildSectionFragments(
+  bySection: Record<ValidationSection, ValidationIssue[]>,
+  formatEntry: (issue: ValidationIssue) => string
+): string {
+  const fragments = SECTIONS_IN_ORDER.filter((entry) => bySection[entry.key].length > 0).map(
+    (entry) => `${entry.title}: ${bySection[entry.key].map(formatEntry).join(", ")}`
+  );
+  return fragments.join("; ");
+}
+
+export function buildGroupedErrorMessage(issues: ValidationIssue[]): string {
+  const missingBySection = collectDedupedIssuesBySection(issues, "missing");
+  const invalidBySection = collectDedupedIssuesBySection(issues, "invalid");
+
+  const missingPart = buildSectionFragments(missingBySection, (issue) => issue.fieldLabel);
+  const invalidPart = buildSectionFragments(invalidBySection, formatInvalidFieldEntry);
+
+  const blocks: string[] = [];
+  if (missingPart.length > 0) {
+    blocks.push(`Campuri lipsa: ${missingPart}`);
+  }
+  if (invalidPart.length > 0) {
+    blocks.push(`Campuri cu valoare invalida: ${invalidPart}`);
+  }
+
+  if (blocks.length === 0) {
     return "Nu se poate genera comanda. Exista campuri obligatorii invalide.";
   }
 
-  return `Nu se poate genera comanda. Lipsesc sau sunt invalide urmatoarele campuri obligatorii: ${sectionFragments.join(
-    "; "
-  )}.`;
+  return `Nu se poate genera comanda. ${blocks.join(". ")}.`;
 }
 
 export function validateGenerationRequest(params: {
