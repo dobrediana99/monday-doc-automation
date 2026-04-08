@@ -1,8 +1,8 @@
 import type { MondayColumnValue, MondayItem } from "../monday/mondayClient";
 import { parseMondayColumnValue, parseMondayNumericValue } from "../utils/mondayValues";
-import { GENERATION_EXPLICITLY_UNSUPPORTED_VALUES, TEMPLATE_MAPPING } from "../utils/mapping";
+import { TEMPLATE_MAPPING } from "../utils/mapping";
 
-type GenerationVariant = keyof typeof TEMPLATE_MAPPING | "Trans. EOOD";
+type GenerationVariant = keyof typeof TEMPLATE_MAPPING;
 type ValidationSection = "trigger" | "client" | "supplier" | "transport" | "payment" | "driver";
 
 type FieldType =
@@ -24,11 +24,6 @@ interface FieldRule {
 
 interface VariantRule {
   variant: GenerationVariant;
-  matchFieldRules: Array<{
-    fieldId: string;
-    expected: string;
-    section: Exclude<ValidationSection, "trigger">;
-  }>;
   requiredFields: FieldRule[];
 }
 
@@ -173,7 +168,6 @@ const SUPPLIER_PAYMENT_FIELDS: FieldRule[] = [...CLIENT_PAYMENT_FIELDS];
 const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
   "Client SRL": {
     variant: "Client SRL",
-    matchFieldRules: [{ fieldId: "color_mktcqj26", expected: "SRL", section: "client" }],
     requiredFields: [
       ...CLIENT_IDENTITY_FIELDS,
       { fieldId: "deal_value", required: true, type: "number", section: "client" },
@@ -184,7 +178,16 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
   },
   "Client GmbH": {
     variant: "Client GmbH",
-    matchFieldRules: [{ fieldId: "color_mktcqj26", expected: "GmbH", section: "client" }],
+    requiredFields: [
+      ...CLIENT_IDENTITY_FIELDS,
+      { fieldId: "deal_value", required: true, type: "number", section: "client" },
+      { fieldId: "numeric_mkpknkjp", required: true, type: "number", section: "client" },
+      ...CLIENT_PAYMENT_FIELDS,
+      ...COMMON_TRANSPORT_FIELDS
+    ]
+  },
+  "Client EOOD": {
+    variant: "Client EOOD",
     requiredFields: [
       ...CLIENT_IDENTITY_FIELDS,
       { fieldId: "deal_value", required: true, type: "number", section: "client" },
@@ -195,7 +198,6 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
   },
   "Trans. SRL": {
     variant: "Trans. SRL",
-    matchFieldRules: [{ fieldId: "color_mkt9as8p", expected: "SRL", section: "supplier" }],
     requiredFields: [
       ...SUPPLIER_IDENTITY_FIELDS,
       { fieldId: "deal_value", required: true, type: "number", section: "supplier" },
@@ -206,7 +208,6 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
   },
   "Trans. GmbH": {
     variant: "Trans. GmbH",
-    matchFieldRules: [{ fieldId: "color_mkt9as8p", expected: "GmbH", section: "supplier" }],
     requiredFields: [
       ...SUPPLIER_IDENTITY_FIELDS,
       { fieldId: "deal_value", required: true, type: "number", section: "supplier" },
@@ -217,8 +218,13 @@ const VARIANT_RULES: Record<GenerationVariant, VariantRule> = {
   },
   "Trans. EOOD": {
     variant: "Trans. EOOD",
-    matchFieldRules: [],
-    requiredFields: []
+    requiredFields: [
+      ...SUPPLIER_IDENTITY_FIELDS,
+      { fieldId: "deal_value", required: true, type: "number", section: "supplier" },
+      { fieldId: "numeric_mkpknkjp", required: true, type: "number", section: "supplier" },
+      ...SUPPLIER_PAYMENT_FIELDS,
+      ...COMMON_TRANSPORT_FIELDS
+    ]
   }
 };
 
@@ -373,25 +379,6 @@ function asUnsupportedStatusResult(selectedValue: string): GenerationValidationR
   };
 }
 
-function asUnsupportedVariantResult(selectedValue: string): GenerationValidationResult {
-  const issue: ValidationIssue = {
-    fieldId: "trigger_status",
-    fieldLabel: "Status generare",
-    section: "trigger",
-    reason: "unsupported_variant",
-    value: selectedValue
-  };
-  return {
-    ok: false,
-    errors: [
-      `Nu se poate genera comanda. Varianta "${selectedValue}" nu este implementata in acest serviciu.`
-    ],
-    missingFields: [],
-    invalidFields: [],
-    issues: [issue]
-  };
-}
-
 const SECTIONS_IN_ORDER: Array<{ key: ValidationSection; title: string }> = [
   { key: "client", title: "Date client" },
   { key: "supplier", title: "Date furnizor" },
@@ -495,65 +482,9 @@ export function validateGenerationRequest(params: {
     return asUnsupportedStatusResult(selectedValue);
   }
 
-  if (GENERATION_EXPLICITLY_UNSUPPORTED_VALUES.has(selectedValue)) {
-    return asUnsupportedVariantResult(selectedValue);
-  }
-
   const variantRules = VARIANT_RULES[selectedValue as GenerationVariant];
   const columnIndex = buildColumnIndex(item);
   const issues: ValidationIssue[] = [];
-
-  for (const matchRule of variantRules.matchFieldRules) {
-    const column = columnIndex.get(matchRule.fieldId);
-    const displayValue = getColumnDisplayValue(column);
-    const rawValue = getColumnRawValue(column);
-    if (isEmptyMondayValue(displayValue) || isInvalidStatusChoice(displayValue)) {
-      logValidationDecision({
-        itemId: item.id,
-        selectedValue,
-        fieldId: matchRule.fieldId,
-        fieldType: "status",
-        reason: "missing",
-        rawValue,
-        normalizedValue: displayValue,
-        expected: matchRule.expected
-      });
-      issues.push({
-        fieldId: matchRule.fieldId,
-        fieldLabel: getFieldLabel(matchRule.fieldId),
-        section: matchRule.section,
-        reason: "missing",
-        value: displayValue,
-        expected: matchRule.expected
-      });
-      continue;
-    }
-
-    const matches = displayValue
-      .split(",")
-      .map((entry) => entry.trim())
-      .some((entry) => entry.toLowerCase() === matchRule.expected.toLowerCase());
-    if (!matches) {
-      logValidationDecision({
-        itemId: item.id,
-        selectedValue,
-        fieldId: matchRule.fieldId,
-        fieldType: "status",
-        reason: "invalid",
-        rawValue,
-        normalizedValue: displayValue,
-        expected: matchRule.expected
-      });
-      issues.push({
-        fieldId: matchRule.fieldId,
-        fieldLabel: getFieldLabel(matchRule.fieldId),
-        section: matchRule.section,
-        reason: "invalid",
-        value: displayValue,
-        expected: matchRule.expected
-      });
-    }
-  }
 
   for (const rule of variantRules.requiredFields) {
     if (!rule.required) {

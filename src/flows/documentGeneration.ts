@@ -1,4 +1,3 @@
-import path from "node:path";
 import { MondayClient, type MondayItem } from "../monday/mondayClient";
 import { GcsService } from "../storage/gcsService";
 import { TemplateService } from "../documents/templateService";
@@ -7,21 +6,30 @@ import {
   GENERATION_ALLOWED_VALUES,
   GENERATION_TRIGGER_COLUMNS,
   getUploadPdfColumn,
+  legalFormLabelForTrigger,
+  legalFormStatusColumnForTrigger,
   TEMPLATE_MAPPING
 } from "../utils/mapping";
+import { buildGeneratedPdfFileName } from "../utils/generatedDocumentName";
 import { buildNormalizedItemModel } from "../utils/mondayValues";
 import {
   GENERATION_ERROR_TEXT_COLUMN,
   validateGenerationRequest
 } from "../validation/generationValidation";
 
-function toModel(item: MondayItem): Record<string, unknown> {
+function toModel(item: MondayItem, selectedValue: string): Record<string, unknown> {
   const model = buildNormalizedItemModel(item);
   model.item_name = item.name;
   model.item_id = item.id;
   model.client_name = (model.client_name as string) || item.name;
   model.price = model.price || "";
   model.loading_address = model.loading_address || "";
+
+  const legalColumnId = legalFormStatusColumnForTrigger(selectedValue);
+  const legalLabel = legalFormLabelForTrigger(selectedValue);
+  if (legalColumnId && legalLabel) {
+    model[legalColumnId] = legalLabel;
+  }
 
   return model;
 }
@@ -72,6 +80,12 @@ export class DocumentGenerationFlow {
     await this.mondayClient.updateText(item.board.id, item.id, GENERATION_ERROR_TEXT_COLUMN, "");
     await this.trySetStatusIfLabelExists(item.board.id, item.id, triggerColumnId, "Generating...");
 
+    const legalColumnId = legalFormStatusColumnForTrigger(selectedValue);
+    const legalLabel = legalFormLabelForTrigger(selectedValue);
+    if (legalColumnId && legalLabel) {
+      await this.trySetStatusIfLabelExists(item.board.id, item.id, legalColumnId, legalLabel);
+    }
+
     const templateFile = TEMPLATE_MAPPING[selectedValue];
     if (!templateFile) {
       const unsupportedMessage = `Nu se poate genera comanda. Varianta "${selectedValue}" nu este implementata in acest serviciu.`;
@@ -80,7 +94,7 @@ export class DocumentGenerationFlow {
       return;
     }
 
-    const model = toModel(item);
+    const model = toModel(item, selectedValue);
     const tmpFiles: string[] = [];
     try {
       const templatePath = await this.gcsService.downloadTemplateToTmp(templateFile);
@@ -93,7 +107,7 @@ export class DocumentGenerationFlow {
       tmpFiles.push(generatedPdf);
 
       const uploadColumn = getUploadPdfColumn(selectedValue);
-      const uploadName = `${path.basename(templateFile, ".docx")}_${item.id}.pdf`;
+      const uploadName = buildGeneratedPdfFileName(selectedValue, item);
 
       await this.mondayClient.uploadFile(item.id, uploadColumn, generatedPdf, uploadName);
       await this.trySetStatusIfLabelExists(item.board.id, item.id, triggerColumnId, "PDF Generated");
