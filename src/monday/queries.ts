@@ -97,3 +97,15 @@ export const ADD_FILE_TO_COLUMN = `
     }
   }
 `;
+
+export const GET_ASSETS_BY_IDS = `
+  query GetAssetsByIds($assetIds: [ID!]) {
+    assets(ids: $assetIds) {
+      id
+      name
+      url
+      public_url
+      file_extension
+    }
+  }
+`;

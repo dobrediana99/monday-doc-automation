@@ -5,7 +5,7 @@ import { IdempotencyService } from "../utils/idempotency";
 import {
   GENERATION_ALLOWED_VALUES,
   GENERATION_TRIGGER_COLUMNS,
-  SIGN_ALLOWED_VALUES,
+  SIGN_TRIGGER_ALLOWED_VALUES,
   SIGN_TRIGGER_COLUMN
 } from "../utils/mapping";
 
@@ -64,7 +64,7 @@ export function createMondayWebhookRouter(params: {
       }
 
       if (event.columnId === SIGN_TRIGGER_COLUMN) {
-        if (!SIGN_ALLOWED_VALUES.has(newStatus)) {
+        if (!SIGN_TRIGGER_ALLOWED_VALUES.has(newStatus)) {
           return res.status(200).json({ ok: true, skipped: "unsupported_sign_value" });
         }
 
