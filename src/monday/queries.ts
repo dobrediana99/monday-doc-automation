@@ -77,6 +77,20 @@ export const UPDATE_TEXT = `
   }
 `;
 
+/** Long-text and some text columns require `change_column_value` with `{ "text": "..." }` instead of `change_simple_column_value`. */
+export const UPDATE_TEXT_VIA_COLUMN_VALUE = `
+  mutation UpdateTextViaColumnValue($boardId: ID!, $itemId: ID!, $columnId: String!, $value: JSON!) {
+    change_column_value(
+      board_id: $boardId
+      item_id: $itemId
+      column_id: $columnId
+      value: $value
+    ) {
+      id
+    }
+  }
+`;
+
 export const UPDATE_LINK = `
   mutation UpdateLink($boardId: ID!, $itemId: ID!, $columnId: String!, $value: JSON!) {
     change_column_value(

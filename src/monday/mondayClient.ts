@@ -8,7 +8,8 @@ import {
   GET_STATUS_COLUMN_SETTINGS,
   UPDATE_LINK,
   UPDATE_STATUS,
-  UPDATE_TEXT
+  UPDATE_TEXT,
+  UPDATE_TEXT_VIA_COLUMN_VALUE
 } from "./queries";
 
 export interface MondayColumnValue {
@@ -231,12 +232,25 @@ export class MondayClient {
   }
 
   async updateText(boardId: string, itemId: string, columnId: string, text: string): Promise<void> {
-    await this.graphql(UPDATE_TEXT, {
-      boardId,
-      itemId,
-      columnId,
-      value: text
-    });
+    try {
+      await this.graphql(UPDATE_TEXT, {
+        boardId,
+        itemId,
+        columnId,
+        value: text
+      });
+    } catch (firstError) {
+      try {
+        await this.graphql(UPDATE_TEXT_VIA_COLUMN_VALUE, {
+          boardId,
+          itemId,
+          columnId,
+          value: JSON.stringify({ text })
+        });
+      } catch {
+        throw firstError instanceof Error ? firstError : new Error(String(firstError));
+      }
+    }
   }
 
   async updateLink(

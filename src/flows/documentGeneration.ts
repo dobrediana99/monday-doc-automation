@@ -61,6 +61,9 @@ export class DocumentGenerationFlow {
       const validationMessage =
         validation.errors[0] ??
         "Nu se poate genera comanda. Exista campuri obligatorii lipsa sau invalide.";
+      const errorColumnId = GENERATION_ERROR_TEXT_COLUMN;
+      const errorStatusLabel = "Eroare";
+
       console.warn(
         JSON.stringify({
           event: "generation_validation_failed",
@@ -72,8 +75,71 @@ export class DocumentGenerationFlow {
         })
       );
 
-      await this.mondayClient.updateText(item.board.id, item.id, GENERATION_ERROR_TEXT_COLUMN, validationMessage);
-      await this.trySetStatusIfLabelExists(item.board.id, item.id, triggerColumnId, "Eroare");
+      try {
+        await this.mondayClient.updateText(item.board.id, item.id, errorColumnId, validationMessage);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          JSON.stringify({
+            event: "generation_monday_error_text_update_failed",
+            itemId,
+            boardId: item.board.id,
+            triggerColumnId,
+            selectedValue,
+            errorColumnId,
+            error: message
+          })
+        );
+      }
+
+      try {
+        const hasLabel = await this.mondayClient.hasStatusLabel(
+          item.board.id,
+          triggerColumnId,
+          errorStatusLabel
+        );
+        if (!hasLabel) {
+          console.warn(
+            JSON.stringify({
+              event: "generation_error_status_label_missing",
+              itemId,
+              boardId: item.board.id,
+              triggerColumnId,
+              selectedValue,
+              errorStatusLabel,
+              message: `Status label "${errorStatusLabel}" not found on trigger column; skipping status update`
+            })
+          );
+        } else {
+          await this.mondayClient.updateStatus(item.board.id, item.id, triggerColumnId, errorStatusLabel);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          JSON.stringify({
+            event: "generation_monday_error_status_update_failed",
+            itemId,
+            boardId: item.board.id,
+            triggerColumnId,
+            selectedValue,
+            errorStatusLabel,
+            error: message
+          })
+        );
+      }
+
+      console.log(
+        JSON.stringify({
+          event: "generation_validation_failed_monday_sync",
+          itemId,
+          boardId: item.board.id,
+          selectedValue,
+          errorColumnId,
+          errorStatusLabel,
+          errorMessage: validationMessage
+        })
+      );
+
       return;
     }
 
