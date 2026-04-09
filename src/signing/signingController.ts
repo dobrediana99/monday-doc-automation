@@ -182,6 +182,7 @@ export function createSigningRouter(params: {
 }
 
 function renderSignPage(token: string): string {
+  const encodedToken = encodeURIComponent(token);
   return `<!doctype html>
 <html>
   <head>
@@ -214,10 +215,10 @@ function renderSignPage(token: string): string {
         <p class="muted" style="margin: 0 0 10px 0;">
           Deschide si verifica documentul inainte de semnare. / Please review the document before signing.
         </p>
-        <iframe src="/sign/${token}/document" title="Document preview"></iframe>
+        <iframe src="/sign/${encodedToken}/document" title="Document preview"></iframe>
         <p class="muted" style="margin: 10px 0 0 0;">
           Daca previzualizarea nu se incarca, deschide in tab nou:
-          <a href="/sign/${token}/document" target="_blank" rel="noopener">Open document</a>
+          <a href="/sign/${encodedToken}/document" target="_blank" rel="noopener">Open document</a>
         </p>
       </section>
 
@@ -312,7 +313,7 @@ function renderSignPage(token: string): string {
         const status = document.getElementById('status');
         status.innerText = 'Submitting...';
 
-        const resp = await fetch('/sign/${token}/submit', {
+        const resp = await fetch('/sign/${encodedToken}/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ consent: true, signaturePngBase64 })
@@ -335,7 +336,7 @@ function renderSignPage(token: string): string {
         const status = document.getElementById('status');
         status.innerText = 'Submitting refusal...';
         const reason = prompt('Optional: reason for refusal');
-        const resp = await fetch('/sign/${token}/refuse', {
+        const resp = await fetch('/sign/${encodedToken}/refuse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ reason: reason || undefined })

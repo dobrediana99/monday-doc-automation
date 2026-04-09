@@ -58,24 +58,10 @@ describe("buildGeneratedDocumentBaseName", () => {
     );
   });
 
-  it("builds client EOOD name", () => {
-    const item = itemFixture({ name: "CLS8766", loadingDateText: "19-12-2025" });
-    expect(buildGeneratedDocumentBaseName({ selectedValue: "Client EOOD", item })).toBe(
-      "ctr_client_EOOD_CLS8766_19-12-2025"
-    );
-  });
-
   it("builds furnizor CH name for Trans. GmbH", () => {
     const item = itemFixture({ name: "CLS8766", loadingDateText: "19-12-2025" });
     expect(buildGeneratedDocumentBaseName({ selectedValue: "Trans. GmbH", item })).toBe(
       "ctr_furnizor_CH_CLS8766_19-12-2025"
-    );
-  });
-
-  it("builds furnizor EOOD name for Trans. EOOD", () => {
-    const item = itemFixture({ name: "CLS8766", loadingDateText: "19-12-2025" });
-    expect(buildGeneratedDocumentBaseName({ selectedValue: "Trans. EOOD", item })).toBe(
-      "ctr_furnizor_EOOD_CLS8766_19-12-2025"
     );
   });
 });

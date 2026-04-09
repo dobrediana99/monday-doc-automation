@@ -14,8 +14,51 @@ interface MondayWebhookPayload {
   event?: {
     pulseId?: number;
     columnId?: string;
-    value?: { label?: { text?: string } };
+    value?: unknown;
   };
+}
+
+function extractStatusLabel(value: unknown): string | null {
+  const normalize = (v: unknown): string | null => {
+    if (typeof v !== "string") {
+      return null;
+    }
+    const s = v.trim();
+    return s.length > 0 ? s : null;
+  };
+
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "object") {
+    const v = value as Record<string, unknown>;
+    const from1 = normalize(((v.label as Record<string, unknown> | undefined)?.text as unknown) ?? null);
+    if (from1) return from1;
+    const from2 = normalize(v.text);
+    if (from2) return from2;
+  }
+
+  const asString = normalize(value);
+  if (asString) {
+    try {
+      const parsed = JSON.parse(asString) as unknown;
+      if (parsed && typeof parsed === "object") {
+        const p = parsed as Record<string, unknown>;
+        const from3a = normalize(((p.label as Record<string, unknown> | undefined)?.text as unknown) ?? null);
+        if (from3a) return from3a;
+        const from3b = normalize(p.text);
+        if (from3b) return from3b;
+        const from3c = normalize(p.label);
+        if (from3c) return from3c;
+      }
+    } catch {
+      // Not JSON, treat as plain string label.
+    }
+    return asString;
+  }
+
+  return null;
 }
 
 export function createMondayWebhookRouter(params: {
@@ -46,7 +89,18 @@ export function createMondayWebhookRouter(params: {
     }
 
     const itemId = String(event.pulseId);
-    const newStatus = event.value?.label?.text || "";
+    const newStatus = extractStatusLabel(event.value);
+    if (!newStatus) {
+      console.warn(
+        JSON.stringify({
+          event: "webhook_missing_status_value",
+          itemId,
+          columnId: event.columnId,
+          valueType: typeof event.value
+        })
+      );
+      return res.status(200).json({ ok: true, skipped: "missing_status_value" });
+    }
     const dedupeKey = params.idempotency.makeKey(itemId, event.columnId, newStatus);
 
     if (params.idempotency.isDuplicateAndRemember(dedupeKey)) {
@@ -76,12 +130,18 @@ export function createMondayWebhookRouter(params: {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Webhook processing failed";
       if (error instanceof Error) {
+        const workflow = GENERATION_TRIGGER_COLUMNS.has(event.columnId)
+          ? "document_generation"
+          : event.columnId === SIGN_TRIGGER_COLUMN
+            ? "signing_email"
+            : "unknown";
         console.error(
           JSON.stringify({
             event: "webhook_processing_error",
+            workflow,
             itemId,
             columnId: event.columnId,
-            newStatus,
+            extractedStatus: newStatus,
             message: error.message,
             stack: error.stack ?? null
           })

@@ -5,6 +5,7 @@ import { GmailService } from "../email/gmailService";
 import { SigningService } from "../signing/signingService";
 import {
   parseSigningFlowType,
+  declinedLabelForFlow,
   recipientDisplayNameFromColumns,
   resolveRecipientEmail,
   SIGN_ERROR_LABEL,
@@ -36,26 +37,32 @@ export class SigningFlow {
       throw new Error(`Unsupported signing trigger value: ${selectedValue}`);
     }
 
-    // On trigger start
     let boardIdForError: string | null = null;
     try {
-      // We need boardId, but we also want to immediately move the trigger column to Procesare.
-      const preItem = await this.mondayClient.getItemById(itemId);
-      boardIdForError = preItem.board.id;
-      await this.mondayClient.updateStatus(preItem.board.id, preItem.id, SIGN_TRIGGER_COLUMN, SIGN_PROCESSING_LABEL);
-
       const item = await this.mondayClient.getItemById(itemId);
       const boardId = item.board.id;
+      boardIdForError = boardId;
 
       const columnTextById = this.mondayClient.getColumnTextById(item);
       const existingLink = (columnTextById[SIGN_LINK_COLUMN[flowType]] ?? "").trim();
       const existingFlowStatus = (columnTextById[SIGN_FLOW_STATUS_COLUMN[flowType]] ?? "").trim();
-      if (existingLink.startsWith("http") && ["Sent", "Completed"].includes(existingFlowStatus)) {
+
+      const alreadyProcessedStatuses = ["Sent", "Completed"];
+      const alreadyProcessedPrefixes = ["Viewed by ", "Declined by "];
+      const isAlreadyProcessed =
+        existingLink.length > 0 &&
+        (alreadyProcessedStatuses.includes(existingFlowStatus) ||
+          alreadyProcessedPrefixes.some((p) => existingFlowStatus.startsWith(p)));
+
+      if (isAlreadyProcessed) {
         return;
       }
 
+      // Only now set main trigger status to Procesare
+      await this.mondayClient.updateStatus(boardId, item.id, SIGN_TRIGGER_COLUMN, SIGN_PROCESSING_LABEL);
+
       const sourceFileColumnId = SIGN_SOURCE_FILE_COLUMN[flowType];
-      const latest = this.mondayClient.getLatestFileAssetFromFileColumn(item, sourceFileColumnId);
+      const latest = await this.mondayClient.resolveLatestFileAssetFromFileColumn(item, sourceFileColumnId);
       if (!latest) {
         throw new Error(
           `Nu exista niciun PDF nesemnat in coloana ${sourceFileColumnId}. Genereaza documentul si reincerca.`
@@ -176,7 +183,13 @@ export class SigningFlow {
       throw new Error("Invalid or expired signing token");
     }
     await this.mondayClient.updateStatus(session.boardId, session.itemId, SIGN_TRIGGER_COLUMN, SIGN_REFUSED_LABEL);
-    await this.mondayClient.updateStatusIfLabelExists(session.boardId, session.itemId, SIGN_FLOW_STATUS_COLUMN[session.flowType], "Declined");
+    const declinedLabel = declinedLabelForFlow({ flowType: session.flowType, emailSource: session.emailSource });
+    await this.mondayClient.updateStatusIfLabelExists(
+      session.boardId,
+      session.itemId,
+      SIGN_FLOW_STATUS_COLUMN[session.flowType],
+      declinedLabel
+    );
   }
 
   async markSignedAndUpdateMonday(params: { token: string }): Promise<void> {

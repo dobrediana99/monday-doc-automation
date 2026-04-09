@@ -96,8 +96,8 @@ export class MondayClient {
     }
 
     try {
-      const parsed = JSON.parse(column.value) as { files?: Array<{ assetId?: number | string }> };
-      const files = parsed.files ?? [];
+      const parsed = JSON.parse(column.value) as unknown;
+      const files = (parsed as { files?: Array<{ assetId?: number | string }> }).files ?? [];
       const last = files.length > 0 ? files[files.length - 1] : null;
       const assetId = last?.assetId ? String(last.assetId) : null;
       if (!assetId) {
@@ -117,6 +117,47 @@ export class MondayClient {
     } catch {
       return null;
     }
+  }
+
+  async resolveLatestFileAssetFromFileColumn(item: MondayItem, fileColumnId: string): Promise<MondayLatestFileAsset | null> {
+    const column = item.column_values.find((c) => c.id === fileColumnId);
+    if (!column) {
+      return null;
+    }
+    if (!column.value) {
+      return null;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(column.value);
+    } catch (err) {
+      throw new Error(`Failed to parse Monday file column JSON for ${fileColumnId}`);
+    }
+
+    const files = (parsed as { files?: Array<{ assetId?: number | string }> }).files;
+    if (!Array.isArray(files) || files.length === 0) {
+      return null;
+    }
+    const last = files[files.length - 1];
+    const assetId = last?.assetId ? String(last.assetId) : null;
+    if (!assetId) {
+      return null;
+    }
+
+    const fromItem = item.assets.find((a) => String(a.id) === assetId);
+    const asset = fromItem ?? (await this.getAssetById(assetId));
+    if (!asset) {
+      return null;
+    }
+
+    return {
+      assetId: String(asset.id),
+      name: asset.name,
+      url: asset.url,
+      public_url: asset.public_url,
+      file_extension: asset.file_extension
+    };
   }
 
   async getAssetById(assetId: string): Promise<MondayAsset | null> {
