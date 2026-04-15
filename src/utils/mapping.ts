@@ -1,8 +1,10 @@
 export const TEMPLATE_MAPPING: Record<string, string> = {
   "Client SRL": "cmd_client_RO.docx",
   "Client GmbH": "cmd_client_CH.docx",
+  "Client EOOD": "cmd_client_EOOD.docx",
   "Trans. SRL": "cmd_furnizor_RO.docx",
-  "Trans. GmbH": "cmd_furnizor_CH.docx"
+  "Trans. GmbH": "cmd_furnizor_CH.docx",
+  "Trans. EOOD": "cmd_furnizor_EOOD.docx"
 };
 
 export const GENERATION_TRIGGER_COLUMNS = new Set([
@@ -32,7 +34,7 @@ export const SIGN_ERROR_LABEL = "Eroare";
 export const CLIENT_LEGAL_FORM_COLUMN_ID = "color_mktcqj26";
 export const SUPPLIER_LEGAL_FORM_COLUMN_ID = "color_mkt9as8p";
 
-export type GenerationLegalForm = "SRL" | "GmbH";
+export type GenerationLegalForm = "SRL" | "GmbH" | "EOOD";
 export type GenerationPartyKind = "client" | "supplier";
 
 export function parseGenerationTrigger(
@@ -43,10 +45,14 @@ export function parseGenerationTrigger(
       return { kind: "client", legalForm: "SRL" };
     case "Client GmbH":
       return { kind: "client", legalForm: "GmbH" };
+    case "Client EOOD":
+      return { kind: "client", legalForm: "EOOD" };
     case "Trans. SRL":
       return { kind: "supplier", legalForm: "SRL" };
     case "Trans. GmbH":
       return { kind: "supplier", legalForm: "GmbH" };
+    case "Trans. EOOD":
+      return { kind: "supplier", legalForm: "EOOD" };
     default:
       return null;
   }

@@ -26,7 +26,7 @@ const DATE_PARSE_FORMATS = [
 
 function documentPrefixForVariant(kind: GenerationPartyKind, legalForm: GenerationLegalForm): string {
   const party = kind === "client" ? "client" : "furnizor";
-  const suffix = legalForm === "SRL" ? "RO" : "CH";
+  const suffix = legalForm === "SRL" ? "RO" : legalForm === "GmbH" ? "CH" : "EOOD";
   return `ctr_${party}_${suffix}`;
 }
 

@@ -85,6 +85,11 @@ export class SigningService {
     return session;
   }
 
+  isTokenValid(token: string): boolean {
+    const session = this.getSessionByToken(token);
+    return Boolean(session && session.status === "active");
+  }
+
   getAuditTrail(token: string): SigningAuditTrail {
     const session = this.getSessionByToken(token);
     if (!session) {
