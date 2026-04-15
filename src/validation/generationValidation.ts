@@ -1,5 +1,11 @@
 import type { MondayColumnValue, MondayItem } from "../monday/mondayClient";
-import { parseMondayColumnValue, parseMondayNumericValue } from "../utils/mondayValues";
+import {
+  getMondayEmailForValidation,
+  getMondayStatusLabelForValidation,
+  MONDAY_EMAIL_PATTERN,
+  parseMondayColumnValue,
+  parseMondayNumericValue
+} from "../utils/mondayValues";
 import { TEMPLATE_MAPPING } from "../utils/mapping";
 
 type GenerationVariant = keyof typeof TEMPLATE_MAPPING;
@@ -51,6 +57,9 @@ export const SUPPORTED_GENERATION_TRIGGER_COLUMNS = new Set([
   PRIMARY_GENERATION_TRIGGER_COLUMN,
   SECONDARY_GENERATION_TRIGGER_COLUMN
 ]);
+
+/** "Mod Transport Principal" — diagnostics when validation disagrees with Monday UI */
+const MOD_TRANSPORT_PRINCIPAL_FIELD_ID = "color_mkx1kx5j";
 
 const INVALID_PLACEHOLDER_VALUES = new Set([
   "",
@@ -265,6 +274,20 @@ function getColumnDisplayValue(column?: MondayColumnValue): string {
   return normalizeText(column.text);
 }
 
+function getEffectiveFieldValueForIssues(column: MondayColumnValue | undefined, ruleType: FieldType): string {
+  if (!column) {
+    return "";
+  }
+  if (ruleType === "email") {
+    const normalized = getMondayEmailForValidation(column);
+    return normalized || getColumnDisplayValue(column);
+  }
+  if (ruleType === "status") {
+    return getMondayStatusLabelForValidation(column);
+  }
+  return getColumnDisplayValue(column);
+}
+
 function hasRelationValue(column?: MondayColumnValue): boolean {
   if (!column) {
     return false;
@@ -295,6 +318,7 @@ function logValidationDecision(params: {
   rawValue: string;
   normalizedValue: string;
   expected?: string;
+  column?: MondayColumnValue;
 }): void {
   console.warn(
     JSON.stringify({
@@ -309,6 +333,26 @@ function logValidationDecision(params: {
       expected: params.expected
     })
   );
+
+  if (params.fieldId === MOD_TRANSPORT_PRINCIPAL_FIELD_ID && params.column) {
+    const parsed = parseMondayColumnValue(params.column);
+    console.warn(
+      JSON.stringify({
+        event: "generation_mod_transport_principal_diagnostics",
+        itemId: params.itemId,
+        fieldId: params.fieldId,
+        fieldType: params.column.type,
+        reason: params.reason,
+        columnText: params.column.text ?? "",
+        columnDisplayValue: params.column.display_value ?? "",
+        parsedDisplayValue: parsed.displayValue,
+        parsedNormalizedText: parsed.normalizedText,
+        parsedLabels: parsed.labels,
+        resolvedStatusLabel: getMondayStatusLabelForValidation(params.column),
+        isPlaceholder: isInvalidStatusChoice(getMondayStatusLabelForValidation(params.column))
+      })
+    );
+  }
 }
 
 function hasRequiredFieldValue(column: MondayColumnValue | undefined, type: FieldType): boolean {
@@ -335,7 +379,7 @@ function hasRequiredFieldValue(column: MondayColumnValue | undefined, type: Fiel
   }
 
   if (type === "status") {
-    const statusValue = parsed.displayValue || parsed.normalizedText;
+    const statusValue = getMondayStatusLabelForValidation(column);
     return statusValue.length > 0 && !isInvalidStatusChoice(statusValue);
   }
 
@@ -349,7 +393,7 @@ function hasRequiredFieldValue(column: MondayColumnValue | undefined, type: Fiel
   }
 
   if (type === "email") {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(display);
+    return MONDAY_EMAIL_PATTERN.test(getMondayEmailForValidation(column));
   }
 
   return true;
@@ -486,7 +530,7 @@ export function validateGenerationRequest(params: {
       continue;
     }
     const column = columnIndex.get(rule.fieldId);
-    const displayValue = getColumnDisplayValue(column);
+    const displayValue = getEffectiveFieldValueForIssues(column, rule.type);
     const rawValue = getColumnRawValue(column);
     const hasValue = hasRequiredFieldValue(column, rule.type);
     if (!hasValue) {
@@ -499,7 +543,8 @@ export function validateGenerationRequest(params: {
         fieldType: rule.type,
         reason,
         rawValue,
-        normalizedValue: displayValue
+        normalizedValue: displayValue,
+        column
       });
       issues.push({
         fieldId: rule.fieldId,
@@ -522,7 +567,8 @@ export function validateGenerationRequest(params: {
           reason: "invalid",
           rawValue,
           normalizedValue: displayValue,
-          expected: rule.allowedValues.join(" / ")
+          expected: rule.allowedValues.join(" / "),
+          column
         });
         issues.push({
           fieldId: rule.fieldId,

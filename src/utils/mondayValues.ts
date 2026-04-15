@@ -11,6 +11,9 @@ interface ParsedColumnValue {
 
 type ParsedRecord = Record<string, unknown>;
 
+/** Single-address format check after structured / display normalization. */
+export const MONDAY_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function safeJsonParse(value: string | null): unknown {
   if (!value) {
     return null;
@@ -124,6 +127,7 @@ function collectTypedLabels(
       addLabel(labels, parsed.display_value);
       break;
     case "status":
+    case "color":
     case "dropdown":
     case "text":
     case "long_text":
@@ -133,6 +137,118 @@ function collectTypedLabels(
     default:
       break;
   }
+}
+
+/**
+ * Extracts a single RFC-like email from Monday display strings such as:
+ * - "user@example.com - user@example.com"
+ * - "Label - user@example.com"
+ * - "user@example.com"
+ */
+export function extractEmailFromMondayDisplayString(raw: string): string | null {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const directMatches = trimmed.match(/[^\s@]+@[^\s@]+\.[^\s@]+/g);
+  if (directMatches && directMatches.length > 0) {
+    const first = directMatches[0].trim();
+    if (MONDAY_EMAIL_PATTERN.test(first)) {
+      return first;
+    }
+  }
+
+  const segments = trimmed.split(/\s*-\s*/).map((s) => s.trim()).filter(Boolean);
+  for (const segment of segments) {
+    const m = segment.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
+    if (m && MONDAY_EMAIL_PATTERN.test(m[0])) {
+      return m[0];
+    }
+  }
+
+  return null;
+}
+
+function readStructuredEmailFromJson(parsed: ParsedRecord | null): string | null {
+  if (!parsed) {
+    return null;
+  }
+
+  const candidates: unknown[] = [parsed.email, parsed.text];
+  const label = parsed.label;
+  if (label && typeof label === "object") {
+    const lo = label as Record<string, unknown>;
+    candidates.push(lo.text, lo.email);
+  }
+
+  for (const c of candidates) {
+    if (typeof c === "string") {
+      const t = c.trim();
+      if (MONDAY_EMAIL_PATTERN.test(t)) {
+        return t;
+      }
+      const extracted = extractEmailFromMondayDisplayString(t);
+      if (extracted) {
+        return extracted;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Prefer structured `email` from Monday column JSON, then fall back to parsing display/text.
+ */
+export function getMondayEmailForValidation(column: MondayColumnValue | undefined): string {
+  if (!column) {
+    return "";
+  }
+
+  const parsedUnknown = safeJsonParse(column.value);
+  const parsedRecord =
+    parsedUnknown && typeof parsedUnknown === "object" ? (parsedUnknown as ParsedRecord) : null;
+
+  const structured = readStructuredEmailFromJson(parsedRecord);
+  if (structured) {
+    return structured;
+  }
+
+  const parsed = parseMondayColumnValue(column);
+  const blobs = [parsed.displayValue, parsed.normalizedText, ...parsed.labels];
+  for (const blob of blobs) {
+    const extracted = extractEmailFromMondayDisplayString(blob);
+    if (extracted) {
+      return extracted;
+    }
+  }
+
+  return "";
+}
+
+/**
+ * Status label for validation: same resolution order as user-visible summary,
+ * including labels parsed from column.value JSON (Monday often omits column.text).
+ */
+export function getMondayStatusLabelForValidation(column: MondayColumnValue | undefined): string {
+  if (!column) {
+    return "";
+  }
+  const parsed = parseMondayColumnValue(column);
+  if (parsed.displayValue.trim()) {
+    return parsed.displayValue.trim();
+  }
+  if (parsed.normalizedText.trim()) {
+    return parsed.normalizedText.trim();
+  }
+  for (const label of parsed.labels) {
+    const t = label.trim();
+    if (t.length > 0) {
+      return t;
+    }
+  }
+  return "";
 }
 
 export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnValue {
@@ -213,6 +329,13 @@ export function parseMondayColumnValue(column: MondayColumnValue): ParsedColumnV
 }
 
 export function extractColumnDisplayText(column: MondayColumnValue): string {
+  if (column.type === "email") {
+    const normalized = getMondayEmailForValidation(column);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
   const directText = (column.text ?? "").trim();
   if (directText) {
     return directText;

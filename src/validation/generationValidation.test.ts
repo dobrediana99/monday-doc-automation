@@ -89,16 +89,40 @@ describe("buildGroupedErrorMessage", () => {
   });
 });
 
-function col(id: string, text: string, type: string): { id: string; text: string; value: string | null; type: string } {
-  return { id, text, value: null, type };
+function col(
+  id: string,
+  text: string,
+  type: string,
+  value: string | null = null,
+  display_value: string | null = null
+): MondayItem["column_values"][number] {
+  return { id, text, value, type, display_value };
 }
 
 function validClientSrlItem(params?: { postalLoad?: string; postalUnload?: string; clientPe?: string }): MondayItem {
   // Provide values for the required fields for the Client SRL variant.
   // Postal codes and "Client pe" are intentionally not required by business rules.
   const cols = [
-    col("email_mkse8jyb", "semnare@example.com", "email"),
-    col("email_mkvneqyg", "contab@example.com", "email"),
+    col(
+      "email_mkse8jyb",
+      "semnare@example.com - semnare@example.com",
+      "email",
+      JSON.stringify({
+        email: "semnare@example.com",
+        text: "semnare@example.com - semnare@example.com"
+      }),
+      "semnare@example.com - semnare@example.com"
+    ),
+    col(
+      "email_mkvneqyg",
+      "contab@example.com - contab@example.com",
+      "email",
+      JSON.stringify({
+        email: "contab@example.com",
+        text: "contab@example.com - contab@example.com"
+      }),
+      "contab@example.com - contab@example.com"
+    ),
     col("board_relation_mkpw4bcs", "Companie Client", "board_relation"),
     col("board_relation_mkshmkgt", "Nume Persoana", "board_relation"),
     col("lookup_mksha4n0", "RO123", "lookup"),
@@ -117,7 +141,7 @@ function validClientSrlItem(params?: { postalLoad?: string; postalUnload?: strin
     col("color_mktcvtpz", "OK", "status"),
     col("color_mktaev1d", "OK", "status"),
     col("deal_owner", "Owner", "text"),
-    col("color_mkx1kx5j", "OK", "status"),
+    col("color_mkx1kx5j", "", "color", JSON.stringify({ label: { index: 1, text: "Rutier" } })),
     col("dropdown_mkx1naw3", "OK", "dropdown"),
     col("color_mkse1tmc", "OK", "status"),
     col("color_mkrb3hhk", "OK", "status"),
@@ -180,5 +204,42 @@ describe("validateGenerationRequest business rules", () => {
     const item = validClientSrlItem({ clientPe: "" });
     const res = validateGenerationRequest({ item, selectedValue: "Client SRL" });
     expect(res.ok).toBe(true);
+  });
+
+  it("Mod Transport Principal is satisfied when label exists only in column JSON (empty text)", () => {
+    const item = validClientSrlItem();
+    const res = validateGenerationRequest({ item, selectedValue: "Client SRL" });
+    expect(res.ok).toBe(true);
+    expect(res.missingFields.map((m) => m.fieldId)).not.toContain("color_mkx1kx5j");
+  });
+
+  it("still fails for genuinely invalid email columns", () => {
+    const item = validClientSrlItem();
+    const badEmail: MondayItem["column_values"][number] = {
+      id: "email_mkse8jyb",
+      type: "email",
+      text: "not-an-email",
+      value: JSON.stringify({ text: "not-an-email" }),
+      display_value: "not-an-email"
+    };
+    item.column_values = item.column_values.map((c) => (c.id === "email_mkse8jyb" ? badEmail : c));
+    const res = validateGenerationRequest({ item, selectedValue: "Client SRL" });
+    expect(res.ok).toBe(false);
+    expect(res.issues.some((i) => i.fieldId === "email_mkse8jyb" && i.reason === "invalid")).toBe(true);
+  });
+
+  it("still fails Mod Transport Principal for placeholder status", () => {
+    const item = validClientSrlItem();
+    const bad: MondayItem["column_values"][number] = {
+      id: "color_mkx1kx5j",
+      type: "color",
+      text: "Alege!",
+      value: JSON.stringify({ label: { text: "Alege!" } }),
+      display_value: null
+    };
+    item.column_values = item.column_values.map((c) => (c.id === "color_mkx1kx5j" ? bad : c));
+    const res = validateGenerationRequest({ item, selectedValue: "Client SRL" });
+    expect(res.ok).toBe(false);
+    expect(res.missingFields.map((m) => m.fieldId)).toContain("color_mkx1kx5j");
   });
 });
