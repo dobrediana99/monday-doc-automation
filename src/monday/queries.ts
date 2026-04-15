@@ -1,5 +1,5 @@
 export const GET_ITEM_BY_ID = `
-  query GetItemById($itemId: [ID!]) {
+  query GetItemById($itemId: [ID!]!) {
     items(ids: $itemId) {
       id
       name
@@ -40,7 +40,7 @@ export const GET_ITEM_BY_ID = `
 `;
 
 export const GET_STATUS_COLUMN_SETTINGS = `
-  query GetStatusColumnSettings($boardId: [ID!], $columnIds: [String!]) {
+  query GetStatusColumnSettings($boardId: [ID!]!, $columnIds: [String!]!) {
     boards(ids: $boardId) {
       id
       columns(ids: $columnIds) {
@@ -113,7 +113,7 @@ export const ADD_FILE_TO_COLUMN = `
 `;
 
 export const GET_ASSETS_BY_IDS = `
-  query GetAssetsByIds($assetIds: [ID!]) {
+  query GetAssetsByIds($assetIds: [ID!]!) {
     assets(ids: $assetIds) {
       id
       name

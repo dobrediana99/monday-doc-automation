@@ -87,6 +87,20 @@ export function createSigningRouter(params: {
       return res.status(200).send(bytes);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load document";
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      console.error(
+        JSON.stringify({
+          event: "signing_document_download_failed",
+          operation: "GetAssetsByIds_or_download",
+          itemId: session.itemId,
+          boardId: session.boardId,
+          sourceAssetId: session.sourceAssetId,
+          sourceFileColumnId: session.sourceFileColumnId,
+          error: errMsg,
+          stack
+        })
+      );
       return res.status(500).send(message);
     }
   });
