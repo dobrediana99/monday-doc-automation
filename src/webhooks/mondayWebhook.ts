@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import type { DocumentGenerationFlow } from "../flows/documentGeneration";
+import { GenerationValidationError } from "../flows/generationErrors";
 import type { SigningFlow } from "../flows/signingFlow";
 import { IdempotencyService } from "../utils/idempotency";
 import {
@@ -103,9 +104,10 @@ export function createMondayWebhookRouter(params: {
     }
     const dedupeKey = params.idempotency.makeKey(itemId, event.columnId, newStatus);
 
-    if (params.idempotency.isDuplicateAndRemember(dedupeKey)) {
+    if (params.idempotency.isDuplicate(dedupeKey)) {
       return res.status(200).json({ ok: true, skipped: "duplicate" });
     }
+    params.idempotency.remember(dedupeKey);
 
     try {
       if (GENERATION_TRIGGER_COLUMNS.has(event.columnId)) {
@@ -113,7 +115,19 @@ export function createMondayWebhookRouter(params: {
           return res.status(200).json({ ok: true, skipped: "unsupported_generation_value" });
         }
 
-        await params.documentFlow.process(itemId, newStatus, event.columnId);
+        try {
+          await params.documentFlow.process(itemId, newStatus, event.columnId);
+        } catch (error) {
+          if (error instanceof GenerationValidationError) {
+            params.idempotency.forget(dedupeKey);
+            return res.status(200).json({
+              ok: true,
+              workflow: "document_generation",
+              outcome: "validation_failed"
+            });
+          }
+          throw error;
+        }
         return res.status(200).json({ ok: true, workflow: "document_generation" });
       }
 

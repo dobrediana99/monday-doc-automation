@@ -16,6 +16,7 @@ import {
   GENERATION_ERROR_TEXT_COLUMN,
   validateGenerationRequest
 } from "../validation/generationValidation";
+import { GenerationValidationError } from "./generationErrors";
 
 function toModel(item: MondayItem, selectedValue: string): Record<string, unknown> {
   const model = buildNormalizedItemModel(item);
@@ -140,7 +141,7 @@ export class DocumentGenerationFlow {
         })
       );
 
-      return;
+      throw new GenerationValidationError(validationMessage);
     }
 
     await this.mondayClient.updateText(item.board.id, item.id, GENERATION_ERROR_TEXT_COLUMN, "");
@@ -157,7 +158,7 @@ export class DocumentGenerationFlow {
       const unsupportedMessage = `Nu se poate genera comanda. Varianta "${selectedValue}" nu este implementata in acest serviciu.`;
       await this.mondayClient.updateText(item.board.id, item.id, GENERATION_ERROR_TEXT_COLUMN, unsupportedMessage);
       await this.trySetStatusIfLabelExists(item.board.id, item.id, triggerColumnId, "Eroare");
-      return;
+      throw new GenerationValidationError(unsupportedMessage);
     }
 
     const model = toModel(item, selectedValue);
