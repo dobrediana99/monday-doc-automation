@@ -130,19 +130,29 @@ export function createSigningRouter(params: {
         params.signingService.setSourcePdfHash(token, params.pdfService.sha256Hex(sourceBytes));
       }
 
-      const trail = params.signingService.getAuditTrail(token);
+      const ip = getClientIp(req);
+      const userAgent = req.get("user-agent") || "unknown";
+      const signedAt = new Date().toISOString();
+      const trailForPdf = {
+        ...params.signingService.getAuditTrail(token),
+        signedAt,
+        ipAtSign: ip,
+        userAgentAtSign: userAgent
+      };
+
       const sourceBytes = await params.signingFlow.getSourcePdfBytes(token);
       const signedPdfPath = await params.pdfService.generateSignedPdfFromBytes(
         sourceBytes,
         parsed.data.signaturePngBase64,
-        trail
+        trailForPdf
       );
 
       const finalFileName = `${session.sourcePdfName.replace(/\.pdf$/i, "")}_signed.pdf`;
       params.signingService.markSigned(token, {
-        ip: getClientIp(req),
-        userAgent: req.get("user-agent") || "unknown",
-        finalSignedFileName: finalFileName
+        ip,
+        userAgent,
+        finalSignedFileName: finalFileName,
+        signedAt
       });
 
       await params.signingFlow.finalizeSignedDocument({

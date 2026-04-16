@@ -16,6 +16,36 @@ export interface SignaturePlacement {
   height: number;
 }
 
+/**
+ * Tunable placement for the visible signature on the last page of the source PDF (origin bottom-left).
+ * Increase `minMarginBottom` / `marginBottomRatio` to move the box upward.
+ */
+export const LAST_PAGE_SIGNATURE_BOX_LAYOUT = {
+  minWidth: 160,
+  widthRatio: 0.28,
+  minHeight: 70,
+  heightRatio: 0.11,
+  minMarginRight: 40,
+  marginRightRatio: 0.06,
+  minMarginBottom: 130,
+  marginBottomRatio: 0.16
+} as const;
+
+export function computeLastPageSignaturePlacement(pageSize: { width: number; height: number }): SignaturePlacement {
+  const { width, height } = pageSize;
+  const L = LAST_PAGE_SIGNATURE_BOX_LAYOUT;
+  const boxWidth = Math.max(L.minWidth, width * L.widthRatio);
+  const boxHeight = Math.max(L.minHeight, height * L.heightRatio);
+  const marginRight = Math.max(L.minMarginRight, width * L.marginRightRatio);
+  const marginBottom = Math.max(L.minMarginBottom, height * L.marginBottomRatio);
+  return {
+    x: width - marginRight - boxWidth,
+    y: marginBottom,
+    width: boxWidth,
+    height: boxHeight
+  };
+}
+
 export class PdfService {
   sha256Hex(buffer: Buffer): string {
     return crypto.createHash("sha256").update(buffer).digest("hex");
@@ -53,7 +83,7 @@ export class PdfService {
     }
 
     const lastPage = pages[pages.length - 1];
-    const signatureBox = this.defaultSignaturePlacement(lastPage.getSize());
+    const signatureBox = computeLastPageSignaturePlacement(lastPage.getSize());
     this.drawSignatureIntoBox(lastPage, signatureImage, signatureBox);
 
     await this.appendStyledAuditPage(pdfDoc, auditTrail);
@@ -61,22 +91,6 @@ export class PdfService {
     const outputPath = path.join("/tmp", `${Date.now()}-signed.pdf`);
     await fs.writeFile(outputPath, await pdfDoc.save({ useObjectStreams: false }));
     return outputPath;
-  }
-
-  private defaultSignaturePlacement(pageSize: { width: number; height: number }): SignaturePlacement {
-    // Stable “stamp/signature” area approximation on last page.
-    // Uses relative placement to support different page sizes.
-    const { width, height } = pageSize;
-    const boxWidth = Math.max(160, width * 0.28);
-    const boxHeight = Math.max(70, height * 0.11);
-    const marginRight = Math.max(40, width * 0.06);
-    const marginBottom = Math.max(60, height * 0.09);
-    return {
-      x: width - marginRight - boxWidth,
-      y: marginBottom,
-      width: boxWidth,
-      height: boxHeight
-    };
   }
 
   private drawSignatureIntoBox(
@@ -165,6 +179,12 @@ export class PdfService {
       const parts = [`Signed by ${trail.recipientEmail}`, trail.signedAt];
       if (trail.ipAtSign) {
         parts.push(`IP ${trail.ipAtSign}`);
+      }
+      if (trail.consentedAt) {
+        parts.push(`Consent ${trail.consentedAt}`);
+      }
+      if (trail.userAgentAtSign) {
+        parts.push(`User agent ${trail.userAgentAtSign}`);
       }
       eventBlock("Signed", parts);
     }

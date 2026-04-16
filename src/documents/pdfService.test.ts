@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { PdfService } from "./pdfService";
+import {
+  PdfService,
+  computeLastPageSignaturePlacement,
+  LAST_PAGE_SIGNATURE_BOX_LAYOUT
+} from "./pdfService";
 import type { SigningAuditTrail } from "../signing/auditService";
 import { inflateSync } from "node:zlib";
 
@@ -44,6 +48,16 @@ function sampleTrail(): SigningAuditTrail {
 }
 
 describe("PdfService signed output composition", () => {
+  it("computes last-page signature placement above legacy stamp band", () => {
+    const page = { width: 595.28, height: 841.89 };
+    const box = computeLastPageSignaturePlacement(page);
+    const legacyMarginBottom = Math.max(60, page.height * 0.09);
+    expect(box.y).toBeGreaterThan(legacyMarginBottom + 40);
+    expect(box.y).toBe(
+      Math.max(LAST_PAGE_SIGNATURE_BOX_LAYOUT.minMarginBottom, page.height * LAST_PAGE_SIGNATURE_BOX_LAYOUT.marginBottomRatio)
+    );
+  });
+
   it("does not include legacy CLS signing phrase", async () => {
     const svc = new PdfService();
     const src = await makeSourcePdfBytes(2);
@@ -74,6 +88,37 @@ describe("PdfService signed output composition", () => {
     expect(decodedText).toContain("Sent to");
     expect(decodedText).toContain("Viewed");
     expect(decodedText).toContain("Signed");
+    expect(decodedText).toContain("Signed by");
+    expect(decodedText).toContain("pianohause.ro@gmail.com");
+    expect(decodedText).toContain("IP 82.76.245.31");
+    expect(decodedText).toContain("Consent 2026-03-10T15:00:00.000Z");
+    expect(decodedText).toContain("User agent ua");
+  });
+
+  it("Signed trail appears with timestamp when IP is not recorded", async () => {
+    const svc = new PdfService();
+    const src = await makeSourcePdfBytes(1);
+    const trail: SigningAuditTrail = {
+      boardId: "b",
+      itemId: "i",
+      flowType: "client",
+      sourceFileColumnId: "file_x",
+      sourceAssetId: "asset1",
+      sourceFileName: "doc.pdf",
+      recipientEmail: "signer@example.com",
+      sessionId: "s1",
+      tokenExpiresAt: "2026-01-02T00:00:00.000Z",
+      sentAt: "2026-01-01T10:00:00.000Z",
+      signedAt: "2026-01-01T11:00:00.000Z"
+    };
+    const outPath = await svc.generateSignedPdfFromBytes(src, PNG_1X1_BASE64, trail);
+    const outBytes = await import("node:fs/promises").then((fs) => fs.readFile(outPath));
+    const inflated = inflateAllFlateStreams(outBytes);
+    const decodedText = decodePdfHexTextRuns(inflated);
+    expect(decodedText).toContain("Sent to");
+    expect(decodedText).toContain("Signed by signer@example.com");
+    expect(decodedText).toContain("2026-01-01T11:00:00.000Z");
+    expect(decodedText).not.toMatch(/Signed[\s\S]*IP /);
   });
 });
 

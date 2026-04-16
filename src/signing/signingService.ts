@@ -165,13 +165,16 @@ export class SigningService {
     }
   }
 
-  markSigned(token: string, meta: { ip: string; userAgent: string; finalSignedFileName: string }): void {
+  markSigned(
+    token: string,
+    meta: { ip: string; userAgent: string; finalSignedFileName: string; signedAt?: string }
+  ): void {
     const session = this.getSessionByToken(token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
     session.status = "signed";
-    session.signedAt = dayjs().toISOString();
+    session.signedAt = meta.signedAt ?? dayjs().toISOString();
     session.ipAtSign = meta.ip;
     session.userAgentAtSign = meta.userAgent;
     session.finalSignedFileName = meta.finalSignedFileName;
