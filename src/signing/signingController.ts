@@ -131,13 +131,11 @@ export function createSigningRouter(params: {
       }
 
       const trail = params.signingService.getAuditTrail(token);
-      const auditLines = params.auditService.buildAuditLines(trail);
-
       const sourceBytes = await params.signingFlow.getSourcePdfBytes(token);
       const signedPdfPath = await params.pdfService.generateSignedPdfFromBytes(
         sourceBytes,
         parsed.data.signaturePngBase64,
-        auditLines
+        trail
       );
 
       const finalFileName = `${session.sourcePdfName.replace(/\.pdf$/i, "")}_signed.pdf`;
