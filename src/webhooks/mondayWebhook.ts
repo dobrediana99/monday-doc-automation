@@ -14,9 +14,18 @@ interface MondayWebhookPayload {
   challenge?: string;
   event?: {
     pulseId?: number;
+    boardId?: number | string;
     columnId?: string;
     value?: unknown;
   };
+}
+
+function webhookBoardId(event: NonNullable<MondayWebhookPayload["event"]>): string | undefined {
+  const raw = event.boardId;
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  return String(raw);
 }
 
 function extractStatusLabel(value: unknown): string | null {
@@ -90,12 +99,14 @@ export function createMondayWebhookRouter(params: {
     }
 
     const itemId = String(event.pulseId);
+    const boardId = webhookBoardId(event);
     const newStatus = extractStatusLabel(event.value);
     if (!newStatus) {
       console.warn(
         JSON.stringify({
           event: "webhook_missing_status_value",
           itemId,
+          ...(boardId !== undefined ? { boardId } : {}),
           columnId: event.columnId,
           valueType: typeof event.value
         })
@@ -105,11 +116,23 @@ export function createMondayWebhookRouter(params: {
     const dedupeKey = params.idempotency.makeKey(itemId, event.columnId, newStatus);
 
     if (params.idempotency.isDuplicate(dedupeKey)) {
+      if (GENERATION_TRIGGER_COLUMNS.has(event.columnId)) {
+        console.info(
+          JSON.stringify({
+            event: "generation_duplicate_webhook_skipped",
+            itemId,
+            ...(boardId !== undefined ? { boardId } : {}),
+            triggerColumnId: event.columnId,
+            selectedValue: newStatus
+          })
+        );
+      }
       if (event.columnId === SIGN_TRIGGER_COLUMN) {
         console.info(
           JSON.stringify({
             event: "signing_start_duplicate_webhook_skipped",
             itemId,
+            ...(boardId !== undefined ? { boardId } : {}),
             columnId: event.columnId,
             newStatus
           })
@@ -122,8 +145,19 @@ export function createMondayWebhookRouter(params: {
     try {
       if (GENERATION_TRIGGER_COLUMNS.has(event.columnId)) {
         if (!GENERATION_ALLOWED_VALUES.has(newStatus)) {
+          params.idempotency.forget(dedupeKey);
           return res.status(200).json({ ok: true, skipped: "unsupported_generation_value" });
         }
+
+        console.info(
+          JSON.stringify({
+            event: "generation_restart_after_manual_trigger",
+            itemId,
+            ...(boardId !== undefined ? { boardId } : {}),
+            triggerColumnId: event.columnId,
+            selectedValue: newStatus
+          })
+        );
 
         try {
           await params.documentFlow.process(itemId, newStatus, event.columnId);
@@ -138,11 +172,23 @@ export function createMondayWebhookRouter(params: {
           }
           throw error;
         }
+        params.idempotency.forget(dedupeKey);
+        console.info(
+          JSON.stringify({
+            event: "generation_regeneration_allowed",
+            itemId,
+            ...(boardId !== undefined ? { boardId } : {}),
+            triggerColumnId: event.columnId,
+            selectedValue: newStatus,
+            note: "idempotency_key_released_after_success"
+          })
+        );
         return res.status(200).json({ ok: true, workflow: "document_generation" });
       }
 
       if (event.columnId === SIGN_TRIGGER_COLUMN) {
         if (!SIGN_TRIGGER_ALLOWED_VALUES.has(newStatus)) {
+          params.idempotency.forget(dedupeKey);
           return res.status(200).json({ ok: true, skipped: "unsupported_sign_value" });
         }
 
@@ -150,8 +196,10 @@ export function createMondayWebhookRouter(params: {
         return res.status(200).json({ ok: true, workflow: "signing_email" });
       }
 
+      params.idempotency.forget(dedupeKey);
       return res.status(200).json({ ok: true, skipped: "irrelevant_column" });
     } catch (error) {
+      params.idempotency.forget(dedupeKey);
       const message = error instanceof Error ? error.message : "Webhook processing failed";
       if (error instanceof Error) {
         const workflow = GENERATION_TRIGGER_COLUMNS.has(event.columnId)
@@ -164,6 +212,7 @@ export function createMondayWebhookRouter(params: {
             event: "webhook_processing_error",
             workflow,
             itemId,
+            ...(boardId !== undefined ? { boardId } : {}),
             columnId: event.columnId,
             extractedStatus: newStatus,
             message: error.message,
