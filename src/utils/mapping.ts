@@ -14,6 +14,10 @@ export const GENERATION_TRIGGER_COLUMNS = new Set([
 
 // Board: "Comenzi / Curse" (2030349838)
 // Trigger status column: "Status Semnare Cmd." (color_mm28cpwk)
+
+/** Text column "Nr. cursa" — canonical order / cursă id for generated PDF names (e.g. CLS01609). Verify in Monday developer mode if filenames look wrong. */
+export const ORDER_NUMBER_COLUMN_ID = "text_mksnqpn0";
+
 export const SIGN_TRIGGER_COLUMN = "color_mm28cpwk";
 
 export const SIGN_ERROR_TEXT_COLUMN = "text_mm28m315";

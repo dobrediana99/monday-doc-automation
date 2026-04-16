@@ -3,6 +3,7 @@ import customParseFormat from "dayjs/plugin/customParseFormat";
 import type { MondayColumnValue, MondayItem } from "../monday/mondayClient";
 import { extractColumnDisplayText } from "./mondayValues";
 import {
+  ORDER_NUMBER_COLUMN_ID,
   type GenerationLegalForm,
   type GenerationPartyKind,
   parseGenerationTrigger
@@ -60,6 +61,40 @@ export function sanitizeOrderIdentifierFromItemName(name: string): string {
   return safe.length > 0 ? safe : "order";
 }
 
+function readFilenameOrderSlugFromColumn(item: MondayItem, columnId: string): string | undefined {
+  const col = findColumn(item, columnId);
+  if (!col) {
+    return undefined;
+  }
+  const raw = extractColumnDisplayText(col).trim();
+  if (!raw) {
+    return undefined;
+  }
+  const slug = sanitizeOrderIdentifierFromItemName(raw);
+  return slug && slug !== "order" ? slug : undefined;
+}
+
+/**
+ * Order segment for `ctr_*_*_<slug>_<date>.pdf`: prefer Monday "Nr. cursa" ({@link ORDER_NUMBER_COLUMN_ID}),
+ * else any column whose entire visible value matches `CLS` + digits (case-insensitive),
+ * else the item pulse name (legacy).
+ */
+export function resolveOrderSlugForFilename(item: MondayItem): string {
+  const fromNrCursa = readFilenameOrderSlugFromColumn(item, ORDER_NUMBER_COLUMN_ID);
+  if (fromNrCursa) {
+    return fromNrCursa;
+  }
+
+  for (const col of item.column_values) {
+    const t = extractColumnDisplayText(col).trim();
+    if (/^CLS\d+$/i.test(t)) {
+      return sanitizeOrderIdentifierFromItemName(t);
+    }
+  }
+
+  return sanitizeOrderIdentifierFromItemName(item.name);
+}
+
 export function buildGeneratedDocumentBaseName(params: {
   selectedValue: string;
   item: MondayItem;
@@ -69,7 +104,7 @@ export function buildGeneratedDocumentBaseName(params: {
     return null;
   }
   const prefix = documentPrefixForVariant(parsed.kind, parsed.legalForm);
-  const orderId = sanitizeOrderIdentifierFromItemName(params.item.name);
+  const orderId = resolveOrderSlugForFilename(params.item);
   const datePart = formatOrderDateDdMmYyyy(params.item);
   return `${prefix}_${orderId}_${datePart}`;
 }
