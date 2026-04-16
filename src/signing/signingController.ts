@@ -248,7 +248,7 @@ function renderSignPage(token: string): string {
           </div>
         </div>
         <div class="row">
-          <canvas id="sig" width="900" height="220"></canvas>
+          <canvas id="sig"></canvas>
         </div>
         <div class="row" style="display:flex; gap: 10px; flex-wrap: wrap;">
           <button id="clear" type="button">Clear</button>
@@ -265,19 +265,51 @@ function renderSignPage(token: string): string {
     <script>
       const canvas = document.getElementById('sig');
       const ctx = canvas.getContext('2d');
-      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#111';
+
       let drawing = false;
       let hasInk = false;
 
-      function pos(evt) {
+      function resizeCanvasPreserve() {
         const rect = canvas.getBoundingClientRect();
-        const point = evt.touches ? evt.touches[0] : evt;
-        return { x: point.clientX - rect.left, y: point.clientY - rect.top };
+        const cssWidth = Math.max(1, Math.floor(rect.width));
+        const cssHeight = 220;
+        const dpr = window.devicePixelRatio || 1;
+
+        const prev = hasInk ? canvas.toDataURL('image/png') : null;
+
+        canvas.style.width = cssWidth + 'px';
+        canvas.style.height = cssHeight + 'px';
+        canvas.width = Math.floor(cssWidth * dpr);
+        canvas.height = Math.floor(cssHeight * dpr);
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.lineWidth = 2;
+
+        if (prev) {
+          const img = new Image();
+          img.onload = () => {
+            ctx.drawImage(img, 0, 0, cssWidth, cssHeight);
+          };
+          img.src = prev;
+        }
+      }
+
+      function clientToCanvasPoint(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const xCss = evt.clientX - rect.left;
+        const yCss = evt.clientY - rect.top;
+        // Convert CSS pixels -> canvas CSS-space coordinates (we use ctx transform for DPR)
+        return { x: xCss, y: yCss };
       }
 
       function start(evt) {
+        if (evt.pointerType === 'mouse' && evt.button !== 0) return;
         drawing = true;
-        const p = pos(evt);
+        canvas.setPointerCapture(evt.pointerId);
+        const p = clientToCanvasPoint(evt);
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
         evt.preventDefault();
@@ -285,7 +317,7 @@ function renderSignPage(token: string): string {
 
       function draw(evt) {
         if (!drawing) return;
-        const p = pos(evt);
+        const p = clientToCanvasPoint(evt);
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
         hasInk = true;
@@ -293,15 +325,27 @@ function renderSignPage(token: string): string {
         evt.preventDefault();
       }
 
-      function stop() { drawing = false; }
+      function stop(evt) {
+        if (!drawing) return;
+        drawing = false;
+        try { canvas.releasePointerCapture(evt.pointerId); } catch {}
+      }
 
-      canvas.addEventListener('mousedown', start);
-      canvas.addEventListener('mousemove', draw);
-      canvas.addEventListener('mouseup', stop);
-      canvas.addEventListener('mouseleave', stop);
-      canvas.addEventListener('touchstart', start, { passive: false });
-      canvas.addEventListener('touchmove', draw, { passive: false });
-      canvas.addEventListener('touchend', stop);
+      // Pointer events cover mouse + touch + pen.
+      canvas.addEventListener('pointerdown', start);
+      canvas.addEventListener('pointermove', draw);
+      canvas.addEventListener('pointerup', stop);
+      canvas.addEventListener('pointercancel', stop);
+      canvas.addEventListener('pointerleave', stop);
+
+      // Prevent touch scrolling while signing.
+      canvas.style.touchAction = 'none';
+
+      // Initial sizing + responsive resize.
+      resizeCanvasPreserve();
+      window.addEventListener('resize', () => {
+        resizeCanvasPreserve();
+      });
 
       function updateSubmitState() {
         const consent = document.getElementById('consent').checked;
@@ -311,7 +355,8 @@ function renderSignPage(token: string): string {
       document.getElementById('consent').addEventListener('change', updateSubmitState);
 
       document.getElementById('clear').onclick = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
         hasInk = false;
         updateSubmitState();
       };
