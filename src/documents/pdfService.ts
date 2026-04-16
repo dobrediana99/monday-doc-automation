@@ -18,7 +18,8 @@ export interface SignaturePlacement {
 
 /**
  * Tunable placement for the visible signature on the last page of the source PDF (origin bottom-left).
- * Increase `minMarginBottom` / `marginBottomRatio` to move the box upward.
+ * - `x` / `y` of the drawn box come from {@link computeLastPageSignaturePlacement} (`y` = bottom margin).
+ * - Increase `minMarginBottom` / `marginBottomRatio` to move the box upward (closer to typical stamp band).
  */
 export const LAST_PAGE_SIGNATURE_BOX_LAYOUT = {
   minWidth: 160,
@@ -27,8 +28,8 @@ export const LAST_PAGE_SIGNATURE_BOX_LAYOUT = {
   heightRatio: 0.11,
   minMarginRight: 40,
   marginRightRatio: 0.06,
-  minMarginBottom: 130,
-  marginBottomRatio: 0.16
+  minMarginBottom: 180,
+  marginBottomRatio: 0.2
 } as const;
 
 export function computeLastPageSignaturePlacement(pageSize: { width: number; height: number }): SignaturePlacement {
