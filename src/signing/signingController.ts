@@ -220,13 +220,14 @@ export function createSigningRouter(params: {
   return router;
 }
 
-function renderSignPage(token: string): string {
+/** HTML for the signing UI (exported for tests). */
+export function renderSignPage(token: string): string {
   const encodedToken = encodeURIComponent(token);
   return `<!doctype html>
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>CLS - Semnare document</title>
+    <title>CLS - Semnare document / Document signing</title>
     <style>
       body { font-family: Arial, sans-serif; margin: 0; color: #111; background: #f6f7f9; }
       header { background: #0b1f3a; color: #fff; padding: 14px 18px; }
@@ -243,26 +244,29 @@ function renderSignPage(token: string): string {
       button.danger { background: #b00020; color: #fff; border-color: #b00020; }
       button:disabled { opacity: 0.6; cursor: not-allowed; }
       .muted { color: #556; font-size: 13px; }
-      .status { margin-top: 10px; font-weight: 600; }
+      .status { margin-top: 10px; font-weight: 600; white-space: pre-line; }
     </style>
   </head>
   <body>
-    <header><strong>CLS</strong> &nbsp;|&nbsp; Semnare document</header>
+    <header><strong>CLS</strong> &nbsp;|&nbsp; Semnare document / Document signing</header>
     <main class="grid">
       <section class="card">
-        <h3 style="margin: 0 0 10px 0;">Document</h3>
+        <h3 style="margin: 0 0 4px 0;">Document</h3>
+        <p class="muted" style="margin: 0 0 10px 0;">Document (previzualizare) / Document preview</p>
         <p class="muted" style="margin: 0 0 10px 0;">
-          Deschide si verifica documentul inainte de semnare. / Please review the document before signing.
+          Deschideti si verificati documentul inainte de semnare.<br />
+          Please review the document before signing.
         </p>
-        <iframe src="/sign/${encodedToken}/document" title="Document preview"></iframe>
+        <iframe src="/sign/${encodedToken}/document" title="Previzualizare document / Document preview"></iframe>
         <p class="muted" style="margin: 10px 0 0 0;">
-          Daca previzualizarea nu se incarca, deschide in tab nou:
-          <a href="/sign/${encodedToken}/document" target="_blank" rel="noopener">Open document</a>
+          Dacă previzualizarea nu se încarcă, deschide în tab nou:<br />
+          If the preview does not load, open it in a new tab:
+          <a href="/sign/${encodedToken}/document" target="_blank" rel="noopener">Deschide documentul / Open document</a>
         </p>
       </section>
 
       <section class="card">
-        <h3 style="margin: 0 0 10px 0;">Semnatura</h3>
+        <h3 style="margin: 0 0 10px 0;">Semnatura / Signature</h3>
         <div class="row">
           <label>
             <input id="consent" type="checkbox" />
@@ -276,18 +280,19 @@ function renderSignPage(token: string): string {
           <canvas id="sig"></canvas>
         </div>
         <div class="row" style="display:flex; gap: 10px; flex-wrap: wrap;">
-          <button id="clear" type="button">Clear</button>
-          <button id="submit" class="primary" type="button" disabled>Submit signature</button>
-          <button id="refuse" class="danger" type="button">Refuse</button>
+          <button id="clear" type="button">Sterge semnatura / Clear</button>
+          <button id="submit" class="primary" type="button" disabled>Trimite semnatura / Submit signature</button>
+          <button id="refuse" class="danger" type="button">Refuz / Refuse</button>
         </div>
         <div id="status" class="status"></div>
-        <div class="muted" style="margin-top: 10px;">
-          This is a custom electronic signature workflow (not QES).
-        </div>
       </section>
     </main>
 
     <script>
+      function bilingualStatus(el, ro, en) {
+        el.textContent = ro + '\\n' + en;
+      }
+
       const canvas = document.getElementById('sig');
       const ctx = canvas.getContext('2d');
       ctx.lineCap = 'round';
@@ -389,13 +394,13 @@ function renderSignPage(token: string): string {
       document.getElementById('submit').onclick = async () => {
         const consent = document.getElementById('consent').checked;
         if (!consent) {
-          alert('Consent is required.');
+          alert('Trebuie sa bifati confirmarea inainte de trimitere.\\n\\nEN: Consent is required before submitting.');
           return;
         }
 
         const signaturePngBase64 = canvas.toDataURL('image/png');
         const status = document.getElementById('status');
-        status.innerText = 'Submitting...';
+        bilingualStatus(status, 'Se trimite semnatura...', 'Submitting signature...');
 
         const resp = await fetch('/sign/${encodedToken}/submit', {
           method: 'POST',
@@ -405,21 +410,22 @@ function renderSignPage(token: string): string {
 
         const data = await resp.json();
         if (!resp.ok) {
-          status.innerText = data.error || 'Failed';
+          const detail = (data && data.error) ? String(data.error) : 'Please try again or contact support.';
+          bilingualStatus(status, 'A aparut o problema la procesare.', detail);
           return;
         }
 
-        status.innerText = 'Document signed successfully.';
+        bilingualStatus(status, 'Documentul a fost semnat cu succes.', 'The document was signed successfully.');
         document.getElementById('submit').disabled = true;
         document.getElementById('refuse').disabled = true;
         document.getElementById('clear').disabled = true;
       };
 
       document.getElementById('refuse').onclick = async () => {
-        if (!confirm('Are you sure you want to refuse signing?')) return;
+        if (!confirm('Sigur doriti sa refuzati semnarea?\\n\\nEN: Are you sure you want to refuse signing?')) return;
         const status = document.getElementById('status');
-        status.innerText = 'Submitting refusal...';
-        const reason = prompt('Optional: reason for refusal');
+        bilingualStatus(status, 'Se trimite refuzul...', 'Submitting refusal...');
+        const reason = prompt('Motiv optional (EN: optional reason for refusal):');
         const resp = await fetch('/sign/${encodedToken}/refuse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -427,10 +433,11 @@ function renderSignPage(token: string): string {
         });
         const data = await resp.json();
         if (!resp.ok) {
-          status.innerText = data.error || 'Failed';
+          const detail = (data && data.error) ? String(data.error) : 'Please try again or contact support.';
+          bilingualStatus(status, 'A aparut o problema la inregistrarea refuzului.', detail);
           return;
         }
-        status.innerText = 'Refusal recorded.';
+        bilingualStatus(status, 'Refuzul a fost inregistrat.', 'Your refusal has been recorded.');
         document.getElementById('submit').disabled = true;
         document.getElementById('refuse').disabled = true;
         document.getElementById('clear').disabled = true;

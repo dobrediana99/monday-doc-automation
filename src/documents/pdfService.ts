@@ -8,6 +8,66 @@ import type { SigningAuditTrail } from "../signing/auditService";
 
 const execFileAsync = promisify(execFile);
 
+/** Minimal font surface used for audit-page text wrapping. */
+export type PdfTextWidthFont = { widthOfTextAtSize: (text: string, size: number) => number };
+
+/**
+ * Word-wrap for audit PDF copy. pdf-lib's drawText({ maxWidth }) wraps visually but does not
+ * expose line count, so layout must pre-compute lines to advance Y before drawing rules/footers.
+ */
+export function wrapPdfTextToLines(
+  text: string,
+  font: PdfTextWidthFont,
+  fontSize: number,
+  maxWidth: number
+): string[] {
+  const normalized = (text ?? "").replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return [""];
+  }
+
+  const lines: string[] = [];
+  let line = "";
+
+  for (const word of normalized.split(" ")) {
+    if (!word) continue;
+    const candidate = line ? `${line} ${word}` : word;
+    if (font.widthOfTextAtSize(candidate, fontSize) <= maxWidth) {
+      line = candidate;
+      continue;
+    }
+
+    if (line) {
+      lines.push(line);
+      line = "";
+    }
+
+    if (font.widthOfTextAtSize(word, fontSize) <= maxWidth) {
+      line = word;
+      continue;
+    }
+
+    let chunk = "";
+    for (const char of word) {
+      const next = chunk + char;
+      if (font.widthOfTextAtSize(next, fontSize) <= maxWidth) {
+        chunk = next;
+      } else {
+        if (chunk) {
+          lines.push(chunk);
+        }
+        chunk = char;
+      }
+    }
+    line = chunk;
+  }
+
+  if (line) {
+    lines.push(line);
+  }
+  return lines.length ? lines : [""];
+}
+
 export interface SignaturePlacement {
   /** PDF points (origin bottom-left) */
   x: number;
@@ -121,6 +181,14 @@ export class PdfService {
     const page = pdfDoc.addPage();
     const { width, height } = page.getSize();
     const left = 50;
+    const rightMargin = 50;
+    const valueColumnX = left + 140;
+    const valueMaxWidth = width - valueColumnX - rightMargin;
+    const bodySize = 10;
+    const bodyLineHeight = Math.max(14, font.heightAtSize(bodySize) + 2);
+    const smallSize = 8;
+    const smallLineHeight = Math.max(12, font.heightAtSize(smallSize) + 2);
+
     let y = height - 60;
 
     const heading = (text: string) => {
@@ -133,15 +201,32 @@ export class PdfService {
     };
     const line = (label: string, value: string) => {
       const safe = (value ?? "").trim() || "-";
-      page.drawText(label, { x: left, y, size: 10, font: fontBold, color: rgb(0.25, 0.25, 0.25) });
-      page.drawText(safe, { x: left + 140, y, size: 10, font, color: rgb(0.15, 0.15, 0.15), maxWidth: width - left - 60 });
-      y -= 14;
+      page.drawText(label, { x: left, y, size: bodySize, font: fontBold, color: rgb(0.25, 0.25, 0.25) });
+      const wrapped = wrapPdfTextToLines(safe, font, bodySize, valueMaxWidth);
+      let yy = y;
+      for (const wline of wrapped) {
+        page.drawText(wline, {
+          x: valueColumnX,
+          y: yy,
+          size: bodySize,
+          font,
+          color: rgb(0.15, 0.15, 0.15)
+        });
+        yy -= bodyLineHeight;
+      }
+      y -= wrapped.length * bodyLineHeight;
     };
     const spacer = (h = 10) => {
       y -= h;
     };
     const sectionRule = () => {
-      page.drawLine({ start: { x: left, y }, end: { x: width - 50, y }, thickness: 1, color: rgb(0.9, 0.9, 0.92) });
+      spacer(4);
+      page.drawLine({
+        start: { x: left, y },
+        end: { x: width - rightMargin, y },
+        thickness: 1,
+        color: rgb(0.9, 0.9, 0.92)
+      });
       y -= 14;
     };
 
@@ -154,11 +239,22 @@ export class PdfService {
 
     heading(`Signature Trail for ${trail.sourceFileName}`);
 
+    const eventBodyMaxWidth = width - (left + 18) - rightMargin;
+
     const eventBlock = (title: string, bodyLines: string[]) => {
       subheading(title);
       for (const b of bodyLines) {
-        page.drawText(b, { x: left + 18, y, size: 10, font, color: rgb(0.15, 0.15, 0.15), maxWidth: width - left - 60 });
-        y -= 14;
+        const wrapped = wrapPdfTextToLines(b, font, bodySize, eventBodyMaxWidth);
+        for (const wline of wrapped) {
+          page.drawText(wline, {
+            x: left + 18,
+            y,
+            size: bodySize,
+            font,
+            color: rgb(0.15, 0.15, 0.15)
+          });
+          y -= bodyLineHeight;
+        }
       }
       spacer(8);
     };
@@ -190,17 +286,22 @@ export class PdfService {
       eventBlock("Signed", parts);
     }
 
-    // Optional: include hash as a small footer line if present (kept readable).
+    // Optional: include hash as a small footer block if present (kept readable).
     if (trail.sourcePdfHashSha256) {
       sectionRule();
-      page.drawText(`Source PDF SHA-256: ${trail.sourcePdfHashSha256}`, {
-        x: left,
-        y: Math.max(40, y),
-        size: 8,
-        font,
-        color: rgb(0.35, 0.35, 0.35),
-        maxWidth: width - left - 60
-      });
+      const hashText = `Source PDF SHA-256: ${trail.sourcePdfHashSha256}`;
+      const hashMaxWidth = width - left - rightMargin;
+      const hashLines = wrapPdfTextToLines(hashText, font, smallSize, hashMaxWidth);
+      for (const hline of hashLines) {
+        page.drawText(hline, {
+          x: left,
+          y,
+          size: smallSize,
+          font,
+          color: rgb(0.35, 0.35, 0.35)
+        });
+        y -= smallLineHeight;
+      }
     }
   }
 }

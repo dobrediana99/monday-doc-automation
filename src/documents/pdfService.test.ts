@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import {
   PdfService,
   computeLastPageSignaturePlacement,
-  LAST_PAGE_SIGNATURE_BOX_LAYOUT
+  LAST_PAGE_SIGNATURE_BOX_LAYOUT,
+  wrapPdfTextToLines
 } from "./pdfService";
 import type { SigningAuditTrail } from "../signing/auditService";
 import { inflateSync } from "node:zlib";
@@ -46,6 +47,22 @@ function sampleTrail(): SigningAuditTrail {
     finalSignedFileName: "x.pdf"
   };
 }
+
+describe("wrapPdfTextToLines", () => {
+  it("splits long user-agent style strings into multiple lines within max width", async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const maxW = 400;
+    const ua =
+      "User agent Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
+    const lines = wrapPdfTextToLines(ua, font, 10, maxW);
+    expect(lines.length).toBeGreaterThan(1);
+    const epsilon = 1;
+    for (const line of lines) {
+      expect(font.widthOfTextAtSize(line, 10)).toBeLessThanOrEqual(maxW + epsilon);
+    }
+  });
+});
 
 describe("PdfService signed output composition", () => {
   it("computes last-page signature placement above legacy stamp band", () => {
