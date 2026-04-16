@@ -65,10 +65,7 @@ Process:
 1. Validate source PDF exists in Monday source file column
 2. Generate secure expiring token (`uuid + random bytes`)
 3. Create signing link `/sign/:token`
-4. Save signing link to Monday link column:
-   - Client -> `link_mksvc32a`
-   - Supplier -> `link_mkx8cgp8`
-5. Send email with signing link using Gmail API
+4. Send email with signing link using Gmail API
 
 When link is opened:
 - Logs `VIEW` event (timestamp, IP, user-agent)

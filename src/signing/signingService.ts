@@ -33,6 +33,7 @@ export interface SigningSession {
 
 export class SigningService {
   private readonly sessions = new Map<string, SigningSession>();
+  private readonly activeSessionIndex = new Map<string, string>();
 
   constructor(private readonly ttlMs: number) {}
 
@@ -71,6 +72,7 @@ export class SigningService {
     };
 
     this.sessions.set(token, session);
+    this.activeSessionIndex.set(this.makeSessionKey(session), token);
     return session;
   }
 
@@ -88,6 +90,26 @@ export class SigningService {
   isTokenValid(token: string): boolean {
     const session = this.getSessionByToken(token);
     return Boolean(session && session.status === "active");
+  }
+
+  getActiveSession(params: {
+    itemId: string;
+    flowType: SigningFlowType;
+    sourceAssetId: string;
+    recipientEmail: string;
+  }): SigningSession | null {
+    this.cleanupExpired();
+    const key = this.makeSessionKey(params);
+    const token = this.activeSessionIndex.get(key);
+    if (!token) {
+      return null;
+    }
+    const session = this.getSessionByToken(token);
+    if (!session || session.status !== "active") {
+      this.activeSessionIndex.delete(key);
+      return null;
+    }
+    return session;
   }
 
   getAuditTrail(token: string): SigningAuditTrail {
@@ -189,5 +211,14 @@ export class SigningService {
         this.sessions.delete(token);
       }
     }
+  }
+
+  private makeSessionKey(params: {
+    itemId: string;
+    flowType: SigningFlowType;
+    sourceAssetId: string;
+    recipientEmail: string;
+  }): string {
+    return `${params.itemId}:${params.flowType}:${params.sourceAssetId}:${params.recipientEmail.toLowerCase()}`;
   }
 }

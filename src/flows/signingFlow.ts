@@ -11,7 +11,6 @@ import {
   SIGN_ERROR_LABEL,
   SIGN_ERROR_TEXT_COLUMN,
   SIGN_FLOW_STATUS_COLUMN,
-  SIGN_LINK_COLUMN,
   SIGN_OUTPUT_FILE_COLUMN,
   SIGN_PROCESSING_LABEL,
   SIGN_SOURCE_FILE_COLUMN,
@@ -37,34 +36,6 @@ export class SigningFlow {
       throw new Error(`Unsupported signing trigger value: ${selectedValue}`);
     }
 
-    const extractTokenFromSigningUrl = (rawUrl: string): string | null => {
-      const url = rawUrl.trim();
-      if (!url) {
-        return null;
-      }
-      try {
-        // Try absolute URL first
-        const parsed = new URL(url);
-        const parts = parsed.pathname.split("/").filter(Boolean);
-        if (parts.length >= 2 && parts[0] === "sign") {
-          return decodeURIComponent(parts[1] ?? "");
-        }
-        return null;
-      } catch {
-        // Fallback for relative paths like /sign/:token or sign/:token
-        const cleaned = url.startsWith("http") ? url : url.replace(/^\/+/, "");
-        const match = cleaned.match(/(?:^|\/)sign\/([^/?#]+)/i);
-        if (!match?.[1]) {
-          return null;
-        }
-        try {
-          return decodeURIComponent(match[1]);
-        } catch {
-          return match[1];
-        }
-      }
-    };
-
     let boardIdForError: string | null = null;
     try {
       const item = await this.mondayClient.getItemById(itemId);
@@ -72,7 +43,6 @@ export class SigningFlow {
       boardIdForError = boardId;
 
       const columnTextById = this.mondayClient.getColumnTextById(item);
-      const existingLink = (columnTextById[SIGN_LINK_COLUMN[flowType]] ?? "").trim();
       const existingFlowStatus = (columnTextById[SIGN_FLOW_STATUS_COLUMN[flowType]] ?? "").trim();
 
       if (existingFlowStatus === "Completed") {
@@ -88,37 +58,6 @@ export class SigningFlow {
         return;
       }
 
-      if (existingLink.length > 0) {
-        const existingToken = extractTokenFromSigningUrl(existingLink);
-        const tokenValid = existingToken ? this.signingService.isTokenValid(existingToken) : false;
-        if (tokenValid) {
-          console.info(
-            JSON.stringify({
-              event: "signing_resend_skipped_existing_valid_link",
-              itemId,
-              boardId,
-              flowType,
-              previousFlowStatus: existingFlowStatus
-            })
-          );
-          return;
-        }
-
-        console.info(
-          JSON.stringify({
-            event: "signing_resend_expired_link_regenerated",
-            itemId,
-            boardId,
-            flowType,
-            previousFlowStatus: existingFlowStatus,
-            reason: existingToken ? "token_missing_or_expired" : "malformed_or_unparseable_link"
-          })
-        );
-      }
-
-      // Only now set main trigger status to Procesare
-      await this.mondayClient.updateStatus(boardId, item.id, SIGN_TRIGGER_COLUMN, SIGN_PROCESSING_LABEL);
-
       const sourceFileColumnId = SIGN_SOURCE_FILE_COLUMN[flowType];
       const latest = await this.mondayClient.resolveLatestFileAssetFromFileColumn(item, sourceFileColumnId);
       if (!latest) {
@@ -131,6 +70,38 @@ export class SigningFlow {
       if (!resolved) {
         throw new Error("Nu am putut determina email-ul destinatarului pentru semnare (verifica coloanele email).");
       }
+
+      const existingSession = this.signingService.getActiveSession({
+        itemId: item.id,
+        flowType,
+        sourceAssetId: latest.assetId,
+        recipientEmail: resolved.email
+      });
+      if (existingSession) {
+        console.info(
+          JSON.stringify({
+            event: "signing_resend_skipped_existing_valid_session",
+            itemId,
+            boardId,
+            flowType,
+            previousFlowStatus: existingFlowStatus
+          })
+        );
+        return;
+      }
+
+      console.info(
+        JSON.stringify({
+          event: "signing_resend_session_regenerated",
+          itemId,
+          boardId,
+          flowType,
+          previousFlowStatus: existingFlowStatus
+        })
+      );
+
+      // Only now set main trigger status to Procesare
+      await this.mondayClient.updateStatus(boardId, item.id, SIGN_TRIGGER_COLUMN, SIGN_PROCESSING_LABEL);
 
       const recipientName = recipientDisplayNameFromColumns(columnTextById);
 
@@ -147,8 +118,6 @@ export class SigningFlow {
       });
 
       const signingUrl = `${this.appBaseUrl}/sign/${encodeURIComponent(session.token)}`;
-
-      await this.mondayClient.updateLink(boardId, item.id, SIGN_LINK_COLUMN[flowType], signingUrl, "Deschide pentru semnare");
 
       await this.gmailService.sendEmail({
         to: resolved.email,

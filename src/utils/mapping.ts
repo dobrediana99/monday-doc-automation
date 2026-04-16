@@ -93,11 +93,6 @@ export const SIGN_OUTPUT_FILE_COLUMN: Record<SigningFlowType, string> = {
   transportator: "file_mksespqb" // Comanda Furnizor Semnata
 };
 
-export const SIGN_LINK_COLUMN: Record<SigningFlowType, string> = {
-  client: "link_mksvc32a", // Link Client
-  transportator: "link_mkx8cgp8" // Link Transportator
-};
-
 export const SIGN_FLOW_STATUS_COLUMN: Record<SigningFlowType, string> = {
   client: "color_mkse8v90", // Status Semnare Client
   transportator: "color_mksn3kgw" // Status Semnare Transportator

@@ -8,10 +8,8 @@ function itemFixture(params: {
   itemId: string;
   boardId: string;
   flowType: "client" | "transportator";
-  link?: string;
   flowStatus?: string;
 }): MondayItem {
-  const linkColumnId = params.flowType === "client" ? "link_mksvc32a" : "link_mkx8cgp8";
   const statusColumnId = params.flowType === "client" ? "color_mkse8v90" : "color_mksn3kgw";
 
   return {
@@ -19,7 +17,6 @@ function itemFixture(params: {
     name: "Item",
     board: { id: params.boardId },
     column_values: [
-      { id: linkColumnId, text: params.link ?? "", value: null, type: "link" },
       { id: statusColumnId, text: params.flowStatus ?? "", value: null, type: "status" },
       // Recipient columns used by resolveRecipientEmail (client primary)
       { id: "email_mkse8jyb", text: "client@example.com", value: null, type: "email" }
@@ -48,7 +45,6 @@ describe("SigningFlow resend behavior for expired links", () => {
         return out;
       },
       updateStatus: vi.fn().mockResolvedValue(undefined),
-      updateLink: vi.fn().mockResolvedValue(undefined),
       resolveLatestFileAssetFromFileColumn: vi.fn().mockResolvedValue({
         assetId: "asset1",
         name: "doc.pdf",
@@ -82,7 +78,6 @@ describe("SigningFlow resend behavior for expired links", () => {
       itemId: "1",
       boardId: "b1",
       flowType: "client",
-      link: `https://svc/sign/${encodeURIComponent(session.token)}`,
       flowStatus: "Sent"
     });
     mondayClient.getItemById = vi.fn().mockResolvedValue(item);
@@ -90,11 +85,10 @@ describe("SigningFlow resend behavior for expired links", () => {
     await flow.startSigning("1", "Trimite Client");
 
     expect(mondayClient.updateStatus).not.toHaveBeenCalled(); // should not set Procesare
-    expect(mondayClient.updateLink).not.toHaveBeenCalled();
     expect(gmailService.sendEmail).not.toHaveBeenCalled();
   });
 
-  it("existing expired link + Sent => resend with new link", async () => {
+  it("existing expired session + Sent => resend with new link", async () => {
     const { mondayClient, gmailService, signingService, flow } = makeDeps();
     // very short TTL for this test
     const shortTtlService = new SigningService(1_000);
@@ -117,7 +111,6 @@ describe("SigningFlow resend behavior for expired links", () => {
       itemId: "1",
       boardId: "b1",
       flowType: "client",
-      link: `https://svc/sign/${encodeURIComponent(session.token)}`,
       flowStatus: "Sent"
     });
     mondayClient.getItemById = vi.fn().mockResolvedValue(item);
@@ -125,11 +118,10 @@ describe("SigningFlow resend behavior for expired links", () => {
     await flow.startSigning("1", "Trimite Client");
 
     expect(mondayClient.updateStatus).toHaveBeenCalled(); // Procesare set
-    expect(mondayClient.updateLink).toHaveBeenCalled();
     expect(gmailService.sendEmail).toHaveBeenCalled();
   });
 
-  it("existing expired link + Viewed by ... => resend", async () => {
+  it("existing expired session + Viewed by ... => resend", async () => {
     const { mondayClient, gmailService, flow } = makeDeps();
     const shortTtlService = new SigningService(1_000);
     (flow as unknown as { signingService: SigningService }).signingService = shortTtlService;
@@ -151,18 +143,16 @@ describe("SigningFlow resend behavior for expired links", () => {
       itemId: "1",
       boardId: "b1",
       flowType: "client",
-      link: `https://svc/sign/${encodeURIComponent(session.token)}`,
       flowStatus: "Viewed by Email Semnare Client"
     });
     mondayClient.getItemById = vi.fn().mockResolvedValue(item);
 
     await flow.startSigning("1", "Trimite Client");
 
-    expect(mondayClient.updateLink).toHaveBeenCalled();
     expect(gmailService.sendEmail).toHaveBeenCalled();
   });
 
-  it("existing valid link + Viewed by ... => no resend", async () => {
+  it("existing valid session + Viewed by ... => no resend", async () => {
     const { mondayClient, gmailService, signingService, flow } = makeDeps();
     const session = signingService.createSession({
       itemId: "1",
@@ -180,14 +170,12 @@ describe("SigningFlow resend behavior for expired links", () => {
       itemId: "1",
       boardId: "b1",
       flowType: "client",
-      link: `https://svc/sign/${encodeURIComponent(session.token)}`,
       flowStatus: "Viewed by Email Semnare Client"
     });
     mondayClient.getItemById = vi.fn().mockResolvedValue(item);
 
     await flow.startSigning("1", "Trimite Client");
 
-    expect(mondayClient.updateLink).not.toHaveBeenCalled();
     expect(gmailService.sendEmail).not.toHaveBeenCalled();
   });
 
@@ -197,31 +185,27 @@ describe("SigningFlow resend behavior for expired links", () => {
       itemId: "1",
       boardId: "b1",
       flowType: "client",
-      link: "https://svc/sign/badtoken",
       flowStatus: "Completed"
     });
     mondayClient.getItemById = vi.fn().mockResolvedValue(item);
 
     await flow.startSigning("1", "Trimite Client");
 
-    expect(mondayClient.updateLink).not.toHaveBeenCalled();
     expect(gmailService.sendEmail).not.toHaveBeenCalled();
   });
 
-  it("malformed old link + Sent => treat as invalid and resend", async () => {
+  it("Sent with no stored link column => generates and sends", async () => {
     const { mondayClient, gmailService, flow } = makeDeps();
     const item = itemFixture({
       itemId: "1",
       boardId: "b1",
       flowType: "client",
-      link: "not a url",
       flowStatus: "Sent"
     });
     mondayClient.getItemById = vi.fn().mockResolvedValue(item);
 
     await flow.startSigning("1", "Trimite Client");
 
-    expect(mondayClient.updateLink).toHaveBeenCalled();
     expect(gmailService.sendEmail).toHaveBeenCalled();
   });
 });
