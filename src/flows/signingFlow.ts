@@ -23,6 +23,8 @@ import {
 } from "../utils/mapping";
 
 export class SigningFlow {
+  private readonly signedContractEmailInFlight = new Set<string>();
+
   constructor(
     private readonly mondayClient: MondayClient,
     private readonly signingService: SigningService,
@@ -147,6 +149,81 @@ export class SigningFlow {
       }
       throw error;
     }
+  }
+
+  /**
+   * Emails the final signed PDF to {@link SigningSession.recipientEmail} (same address used for the signing invite).
+   * Idempotent per session: skips if already sent or while another send for this token is in progress.
+   */
+  async sendSignedContractRecipientEmailIfNeeded(params: { token: string; signedPdfPath: string }): Promise<void> {
+    if (this.signedContractEmailInFlight.has(params.token)) {
+      console.info(
+        JSON.stringify({
+          event: "signing_signed_contract_email_skipped_in_flight",
+          token: params.token
+        })
+      );
+      return;
+    }
+
+    const session = this.signingService.getSessionByToken(params.token);
+    if (!session || session.status !== "signed") {
+      throw new Error("Invalid signing session for signed-contract email");
+    }
+    if (session.signedContractEmailSentAt) {
+      console.info(
+        JSON.stringify({
+          event: "signing_signed_contract_email_skipped_already_sent",
+          itemId: session.itemId,
+          flowType: session.flowType
+        })
+      );
+      return;
+    }
+
+    this.signedContractEmailInFlight.add(params.token);
+    try {
+      const pdfBytes = await fs.readFile(params.signedPdfPath);
+      const attachmentFileName =
+        session.finalSignedFileName ?? `${path.basename(session.sourcePdfName, ".pdf")}_signed.pdf`;
+      const safeTitle = this.escapeHtml(path.basename(attachmentFileName));
+
+      await this.gmailService.sendEmailWithPdfAttachment({
+        to: session.recipientEmail,
+        subject: `Contract semnat - ${path.basename(attachmentFileName)}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <p>Buna ziua,</p>
+            <p>Va trimitem atasat documentul semnat${safeTitle ? ` (<strong>${safeTitle}</strong>)` : ""}.</p>
+            <p>O zi buna!</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
+            <p style="margin: 0; font-size: 12px; color: #555;">EN: Please find the signed contract attached.</p>
+          </div>
+        `,
+        pdfBytes,
+        attachmentFileName: path.basename(attachmentFileName)
+      });
+
+      this.signingService.markSignedContractEmailSent(params.token);
+      console.info(
+        JSON.stringify({
+          event: "signing_signed_contract_email_sent",
+          itemId: session.itemId,
+          flowType: session.flowType,
+          to: session.recipientEmail
+        })
+      );
+    } finally {
+      this.signedContractEmailInFlight.delete(params.token);
+    }
+  }
+
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   async finalizeSignedDocument(params: {

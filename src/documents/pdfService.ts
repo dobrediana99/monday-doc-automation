@@ -28,8 +28,8 @@ export const LAST_PAGE_SIGNATURE_BOX_LAYOUT = {
   heightRatio: 0.11,
   minMarginRight: 40,
   marginRightRatio: 0.06,
-  minMarginBottom: 180,
-  marginBottomRatio: 0.2
+  minMarginBottom: 235,
+  marginBottomRatio: 0.25
 } as const;
 
 export function computeLastPageSignaturePlacement(pageSize: { width: number; height: number }): SignaturePlacement {

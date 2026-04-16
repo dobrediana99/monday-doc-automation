@@ -29,6 +29,8 @@ export interface SigningSession {
   finalSignedFileName?: string;
   refusalReason?: string;
   lastError?: string;
+  /** Set after the signed PDF is emailed to the session `recipientEmail` (idempotent send guard). */
+  signedContractEmailSentAt?: string;
 }
 
 export class SigningService {
@@ -205,6 +207,14 @@ export class SigningService {
       return;
     }
     session.lastError = message;
+  }
+
+  markSignedContractEmailSent(token: string): void {
+    const session = this.getSessionByToken(token);
+    if (!session) {
+      return;
+    }
+    session.signedContractEmailSentAt = dayjs().toISOString();
   }
 
   private cleanupExpired(): void {

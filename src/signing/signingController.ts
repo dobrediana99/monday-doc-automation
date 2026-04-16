@@ -155,6 +155,23 @@ export function createSigningRouter(params: {
         signedAt
       });
 
+      try {
+        await params.signingFlow.sendSignedContractRecipientEmailIfNeeded({
+          token,
+          signedPdfPath
+        });
+      } catch (emailError) {
+        const errMsg = emailError instanceof Error ? emailError.message : String(emailError);
+        console.error(
+          JSON.stringify({
+            event: "signing_signed_contract_email_failed",
+            token,
+            itemId: session.itemId,
+            error: errMsg
+          })
+        );
+      }
+
       await params.signingFlow.finalizeSignedDocument({
         token,
         signedPdfPath

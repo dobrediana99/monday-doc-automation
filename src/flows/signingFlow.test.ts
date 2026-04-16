@@ -55,7 +55,10 @@ describe("SigningFlow resend behavior for expired links", () => {
       updateText: vi.fn().mockResolvedValue(undefined)
     } as unknown as MondayClient;
 
-    const gmailService = { sendEmail: vi.fn().mockResolvedValue(undefined) } as unknown as GmailService;
+    const gmailService = {
+      sendEmail: vi.fn().mockResolvedValue(undefined),
+      sendEmailWithPdfAttachment: vi.fn().mockResolvedValue(undefined)
+    } as unknown as GmailService;
     const signingService = new SigningService(60_000);
     const flow = new SigningFlow(mondayClient, signingService, gmailService, "https://svc");
     return { mondayClient, gmailService, signingService, flow };

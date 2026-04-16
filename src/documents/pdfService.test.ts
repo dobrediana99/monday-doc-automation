@@ -58,6 +58,11 @@ describe("PdfService signed output composition", () => {
     );
   });
 
+  it("last-page signature box sits higher than earlier 2026-04 tuning (~180pt on A4)", () => {
+    const y = computeLastPageSignaturePlacement({ width: 595.28, height: 841.89 }).y;
+    expect(y).toBeGreaterThan(200);
+  });
+
   it("does not include legacy CLS signing phrase", async () => {
     const svc = new PdfService();
     const src = await makeSourcePdfBytes(2);
