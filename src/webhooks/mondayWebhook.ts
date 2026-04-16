@@ -105,6 +105,16 @@ export function createMondayWebhookRouter(params: {
     const dedupeKey = params.idempotency.makeKey(itemId, event.columnId, newStatus);
 
     if (params.idempotency.isDuplicate(dedupeKey)) {
+      if (event.columnId === SIGN_TRIGGER_COLUMN) {
+        console.info(
+          JSON.stringify({
+            event: "signing_start_duplicate_webhook_skipped",
+            itemId,
+            columnId: event.columnId,
+            newStatus
+          })
+        );
+      }
       return res.status(200).json({ ok: true, skipped: "duplicate" });
     }
     params.idempotency.remember(dedupeKey);

@@ -48,14 +48,13 @@ export class SigningFlow {
       if (existingFlowStatus === "Completed") {
         console.info(
           JSON.stringify({
-            event: "signing_resend_skipped_completed",
+            event: "signing_restart_after_completed",
             itemId,
             boardId,
             flowType,
             previousFlowStatus: existingFlowStatus
           })
         );
-        return;
       }
 
       const sourceFileColumnId = SIGN_SOURCE_FILE_COLUMN[flowType];
@@ -80,7 +79,7 @@ export class SigningFlow {
       if (existingSession) {
         console.info(
           JSON.stringify({
-            event: "signing_resend_skipped_existing_valid_session",
+            event: "signing_start_skipped_active_existing_session",
             itemId,
             boardId,
             flowType,
@@ -92,7 +91,11 @@ export class SigningFlow {
 
       console.info(
         JSON.stringify({
-          event: "signing_resend_session_regenerated",
+          event: existingFlowStatus === "Completed"
+            ? "signing_restart_after_completed"
+            : existingFlowStatus.length > 0
+              ? "signing_restart_after_expired_session"
+              : "signing_start_new_session",
           itemId,
           boardId,
           flowType,

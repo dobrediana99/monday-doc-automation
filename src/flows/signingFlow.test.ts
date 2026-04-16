@@ -179,7 +179,7 @@ describe("SigningFlow resend behavior for expired links", () => {
     expect(gmailService.sendEmail).not.toHaveBeenCalled();
   });
 
-  it("Completed => no resend (even if link missing/expired)", async () => {
+  it("Completed => allows explicit restart and sends again", async () => {
     const { mondayClient, gmailService, flow } = makeDeps();
     const item = itemFixture({
       itemId: "1",
@@ -191,7 +191,23 @@ describe("SigningFlow resend behavior for expired links", () => {
 
     await flow.startSigning("1", "Trimite Client");
 
-    expect(gmailService.sendEmail).not.toHaveBeenCalled();
+    expect(gmailService.sendEmail).toHaveBeenCalled();
+  });
+
+  it("second call with active session => skips duplicate send", async () => {
+    const { mondayClient, gmailService, flow } = makeDeps();
+    const item = itemFixture({
+      itemId: "1",
+      boardId: "b1",
+      flowType: "client",
+      flowStatus: "Sent"
+    });
+    mondayClient.getItemById = vi.fn().mockResolvedValue(item);
+
+    await flow.startSigning("1", "Trimite Client");
+    await flow.startSigning("1", "Trimite Client");
+
+    expect(gmailService.sendEmail).toHaveBeenCalledTimes(1);
   });
 
   it("Sent with no stored link column => generates and sends", async () => {
