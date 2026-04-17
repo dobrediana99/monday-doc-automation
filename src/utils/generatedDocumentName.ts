@@ -35,6 +35,35 @@ function findColumn(item: MondayItem, columnId: string): MondayColumnValue | und
   return item.column_values.find((c) => c.id === columnId);
 }
 
+/**
+ * Monday text columns often expose `text` in the UI but persist only `value: {"text":"..."}`.
+ * Used for order/transport id so filenames do not fall back to the pulse (company) name.
+ */
+export function readMondayTextColumnRawTrimmed(column: MondayColumnValue | undefined): string {
+  if (!column) {
+    return "";
+  }
+  const direct = (column.text ?? "").trim();
+  if (direct.length > 0) {
+    return direct;
+  }
+  const rawValue = column.value?.trim();
+  if (rawValue) {
+    try {
+      const parsed = JSON.parse(rawValue) as { text?: unknown };
+      if (typeof parsed.text === "string") {
+        const fromJson = parsed.text.trim();
+        if (fromJson.length > 0) {
+          return fromJson;
+        }
+      }
+    } catch {
+      // ignore malformed JSON
+    }
+  }
+  return extractColumnDisplayText(column).trim();
+}
+
 export function formatOrderDateDdMmYyyy(item: MondayItem): string {
   const col = findColumn(item, ORDER_DATE_COLUMN_ID);
   const raw = col ? extractColumnDisplayText(col).trim() : "";
@@ -66,7 +95,7 @@ function readFilenameOrderSlugFromColumn(item: MondayItem, columnId: string): st
   if (!col) {
     return undefined;
   }
-  const raw = extractColumnDisplayText(col).trim();
+  const raw = readMondayTextColumnRawTrimmed(col);
   if (!raw) {
     return undefined;
   }
@@ -76,8 +105,8 @@ function readFilenameOrderSlugFromColumn(item: MondayItem, columnId: string): st
 
 /**
  * Order segment for `ctr_*_*_<slug>_<date>.pdf`: prefer Monday "Nr. cursa" ({@link ORDER_NUMBER_COLUMN_ID}),
- * else any column whose entire visible value matches `CLS` + digits (case-insensitive),
- * else the item pulse name (legacy).
+ * else any column whose entire value matches `CLS` + digits (case-insensitive).
+ * Does not use the item pulse name (often company/test title) — missing data yields the stable placeholder `order`.
  */
 export function resolveOrderSlugForFilename(item: MondayItem): string {
   const fromNrCursa = readFilenameOrderSlugFromColumn(item, ORDER_NUMBER_COLUMN_ID);
@@ -86,13 +115,13 @@ export function resolveOrderSlugForFilename(item: MondayItem): string {
   }
 
   for (const col of item.column_values) {
-    const t = extractColumnDisplayText(col).trim();
+    const t = readMondayTextColumnRawTrimmed(col);
     if (/^CLS\d+$/i.test(t)) {
       return sanitizeOrderIdentifierFromItemName(t);
     }
   }
 
-  return sanitizeOrderIdentifierFromItemName(item.name);
+  return "order";
 }
 
 export function buildGeneratedDocumentBaseName(params: {

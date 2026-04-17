@@ -5,6 +5,7 @@ import {
   buildGeneratedPdfFileName,
   formatOrderDateDdMmYyyy,
   ORDER_DATE_COLUMN_ID,
+  readMondayTextColumnRawTrimmed,
   resolveOrderSlugForFilename,
   sanitizeOrderIdentifierFromItemName
 } from "./generatedDocumentName";
@@ -61,9 +62,9 @@ describe("resolveOrderSlugForFilename", () => {
     expect(buildGeneratedDocumentBaseName({ selectedValue: "Client SRL", item })).toBe("ctr_client_RO_CLS01609_10-04-2026");
   });
 
-  it("falls back to pulse name when Nr. cursa is empty and no CLS-only column", () => {
+  it("uses stable placeholder when Nr. cursa is empty and no CLS-only column (never pulse name)", () => {
     const item = itemFixture({ name: "TEST", loadingDateText: "10.04.2026" });
-    expect(resolveOrderSlugForFilename(item)).toBe("TEST");
+    expect(resolveOrderSlugForFilename(item)).toBe("order");
   });
 
   it("uses any column whose full value is exactly CLS + digits", () => {
@@ -91,7 +92,27 @@ describe("resolveOrderSlugForFilename", () => {
       ],
       assets: []
     };
-    expect(resolveOrderSlugForFilename(item)).toBe("MYORDER");
+    expect(resolveOrderSlugForFilename(item)).toBe("order");
+  });
+
+  it("reads Nr. cursa from value JSON when column.text is empty", () => {
+    const item: MondayItem = {
+      id: "1",
+      name: "TEST",
+      board: { id: "b" },
+      column_values: [
+        { id: ORDER_DATE_COLUMN_ID, text: "10.04.2026", value: null, type: "text" },
+        {
+          id: ORDER_NUMBER_COLUMN_ID,
+          text: "",
+          value: JSON.stringify({ text: "CLS01609" }),
+          type: "text"
+        }
+      ],
+      assets: []
+    };
+    expect(resolveOrderSlugForFilename(item)).toBe("CLS01609");
+    expect(readMondayTextColumnRawTrimmed(item.column_values[1])).toBe("CLS01609");
   });
 });
 
@@ -106,28 +127,28 @@ describe("buildGeneratedDocumentBaseName", () => {
   });
 
   it("builds client RO name with order id and loading date", () => {
-    const item = itemFixture({ name: "CLS8766", loadingDateText: "19.12.2025" });
+    const item = itemFixture({ name: "Company Pulse", loadingDateText: "19.12.2025", nrCursaText: "CLS8766" });
     expect(buildGeneratedDocumentBaseName({ selectedValue: "Client SRL", item })).toBe(
       "ctr_client_RO_CLS8766_19-12-2025"
     );
   });
 
   it("builds client EOOD name", () => {
-    const item = itemFixture({ name: "CLS8766", loadingDateText: "19-12-2025" });
+    const item = itemFixture({ name: "Company Pulse", loadingDateText: "19.12.2025", nrCursaText: "CLS8766" });
     expect(buildGeneratedDocumentBaseName({ selectedValue: "Client EOOD", item })).toBe(
       "ctr_client_EOOD_CLS8766_19-12-2025"
     );
   });
 
   it("builds furnizor CH name for Trans. GmbH", () => {
-    const item = itemFixture({ name: "CLS8766", loadingDateText: "19-12-2025" });
+    const item = itemFixture({ name: "Company Pulse", loadingDateText: "19.12.2025", nrCursaText: "CLS8766" });
     expect(buildGeneratedDocumentBaseName({ selectedValue: "Trans. GmbH", item })).toBe(
       "ctr_furnizor_CH_CLS8766_19-12-2025"
     );
   });
 
   it("builds furnizor EOOD name for Trans. EOOD", () => {
-    const item = itemFixture({ name: "CLS8766", loadingDateText: "19-12-2025" });
+    const item = itemFixture({ name: "Company Pulse", loadingDateText: "19.12.2025", nrCursaText: "CLS8766" });
     expect(buildGeneratedDocumentBaseName({ selectedValue: "Trans. EOOD", item })).toBe(
       "ctr_furnizor_EOOD_CLS8766_19-12-2025"
     );
@@ -155,5 +176,16 @@ describe("buildGeneratedPdfFileName", () => {
     const pdf = buildGeneratedPdfFileName("Client SRL", item);
     expect(pdf).toBe("ctr_client_RO_CLS01609_10-04-2026.pdf");
     expect(pdf.replace(/\.pdf$/i, "") + "_signed.pdf").toBe("ctr_client_RO_CLS01609_10-04-2026_signed.pdf");
+  });
+
+  it("unsigned upload basename never uses pulse company name when Nr. cursa is missing", () => {
+    const item = itemFixture({
+      name: "Client_RO_TEST",
+      loadingDateText: "10.04.2026"
+    });
+    const pdf = buildGeneratedPdfFileName("Client SRL", item);
+    expect(pdf).toBe("ctr_client_RO_order_10-04-2026.pdf");
+    expect(pdf).not.toContain("TEST");
+    expect(pdf).not.toContain("Client_RO");
   });
 });
