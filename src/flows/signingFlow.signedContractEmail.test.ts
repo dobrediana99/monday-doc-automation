@@ -56,7 +56,8 @@ describe("SigningFlow signed-contract recipient email", () => {
     signingService.markSigned(session.token, {
       ip: "1.1.1.1",
       userAgent: "ua",
-      finalSignedFileName: "Contract RO_signed.pdf"
+      finalSignedFileName: "Contract RO_signed.pdf",
+      signerFullName: "Test Signer"
     });
 
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "signed-pdf-"));
@@ -101,7 +102,8 @@ describe("SigningFlow signed-contract recipient email", () => {
     signingService.markSigned(session.token, {
       ip: "1.1.1.1",
       userAgent: "ua",
-      finalSignedFileName: "doc_signed.pdf"
+      finalSignedFileName: "doc_signed.pdf",
+      signerFullName: "Furnizor SA"
     });
 
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "signed-pdf-"));
@@ -138,7 +140,8 @@ describe("SigningFlow signed-contract recipient email", () => {
     signingService.markSigned(session.token, {
       ip: "1.1.1.1",
       userAgent: "ua",
-      finalSignedFileName: "doc_signed.pdf"
+      finalSignedFileName: "doc_signed.pdf",
+      signerFullName: "Dup Test"
     });
 
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "signed-pdf-"));

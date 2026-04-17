@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import type { SigningAuditTrail } from "../signing/auditService";
 
 const execFileAsync = promisify(execFile);
@@ -145,7 +145,8 @@ export class PdfService {
 
     const lastPage = pages[pages.length - 1];
     const signatureBox = computeLastPageSignaturePlacement(lastPage.getSize());
-    this.drawSignatureIntoBox(lastPage, signatureImage, signatureBox);
+    const labelFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    this.drawSigningBlockOnLastPage(lastPage, signatureImage, signatureBox, auditTrail.signerFullName, labelFont);
 
     await this.appendStyledAuditPage(pdfDoc, auditTrail);
 
@@ -154,11 +155,61 @@ export class PdfService {
     return outputPath;
   }
 
-  private drawSignatureIntoBox(
-    page: { drawImage: Function; getSize: () => { width: number; height: number } },
-    signatureImage: { width: number; height: number },
-    box: SignaturePlacement
+  /**
+   * Draws typed full name (right-aligned) above the handwritten image within the same placement box
+   * on the last page — no extra page.
+   */
+  private drawSigningBlockOnLastPage(
+    page: PDFPage,
+    signatureImage: PDFImage,
+    box: SignaturePlacement,
+    signerFullName: string | undefined,
+    font: PDFFont
   ): void {
+    const name = (signerFullName ?? "").trim();
+    const fontSize = 10;
+    const lineHeight = Math.max(12, font.heightAtSize(fontSize) + 2);
+    const maxTextLines = 4;
+    const topPadding = 14;
+
+    let textBlockH = 0;
+    let lines: string[] = [];
+    if (name.length > 0) {
+      lines = wrapPdfTextToLines(name, font, fontSize, box.width);
+      if (lines.length > maxTextLines) {
+        lines = lines.slice(0, maxTextLines);
+      }
+      textBlockH = Math.min(box.height * 0.4, lines.length * lineHeight + topPadding);
+    }
+
+    const gap = name ? 4 : 0;
+    const sigAreaH = Math.max(24, box.height - textBlockH - gap);
+    const sigSubBox: SignaturePlacement = {
+      x: box.x,
+      y: box.y,
+      width: box.width,
+      height: sigAreaH
+    };
+
+    if (lines.length > 0) {
+      let baseline = box.y + box.height - topPadding;
+      for (const line of lines) {
+        const w = font.widthOfTextAtSize(line, fontSize);
+        page.drawText(line, {
+          x: box.x + box.width - w,
+          y: baseline,
+          size: fontSize,
+          font,
+          color: rgb(0.05, 0.05, 0.08)
+        });
+        baseline -= lineHeight;
+      }
+    }
+
+    this.drawSignatureIntoBox(page, signatureImage, sigSubBox);
+  }
+
+  private drawSignatureIntoBox(page: PDFPage, signatureImage: PDFImage, box: SignaturePlacement): void {
     // Fit signature into box while preserving aspect ratio.
     const imgAspect = signatureImage.width / signatureImage.height;
     const boxAspect = box.width / box.height;
@@ -171,7 +222,7 @@ export class PdfService {
     }
     const x = box.x + (box.width - drawW) / 2;
     const y = box.y + (box.height - drawH) / 2;
-    page.drawImage(signatureImage as any, { x, y, width: drawW, height: drawH });
+    page.drawImage(signatureImage, { x, y, width: drawW, height: drawH });
   }
 
   private async appendStyledAuditPage(pdfDoc: PDFDocument, trail: SigningAuditTrail): Promise<void> {
@@ -274,6 +325,9 @@ export class PdfService {
 
     if (trail.signedAt) {
       const parts = [`Signed by ${trail.recipientEmail}`, trail.signedAt];
+      if (trail.signerFullName?.trim()) {
+        parts.push(`Full name: ${trail.signerFullName.trim()}`);
+      }
       if (trail.ipAtSign) {
         parts.push(`IP ${trail.ipAtSign}`);
       }

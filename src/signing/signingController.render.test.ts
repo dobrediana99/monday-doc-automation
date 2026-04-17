@@ -26,4 +26,13 @@ describe("renderSignPage", () => {
     expect(html).toContain("Submitting refusal...");
     expect(html).toContain("A aparut o problema la procesare.");
   });
+
+  it("includes mandatory bilingual full name field and validation copy", () => {
+    expect(html).toContain('id="signerFullName"');
+    expect(html).toContain("Nume complet / Full name");
+    expect(html).toContain("fullNameTrimmed");
+    expect(html).toContain("Te rugăm să completezi numele complet.");
+    expect(html).toContain("Please enter the full name.");
+    expect(html).toContain("signerFullName: fullName");
+  });
 });

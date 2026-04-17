@@ -26,6 +26,8 @@ export interface SigningAuditTrail {
   ipAtSign?: string;
   userAgentAtView?: string;
   userAgentAtSign?: string;
+  /** Typed full name captured at signing submit (mandatory in UI). */
+  signerFullName?: string;
   sessionId: string;
   tokenExpiresAt: string;
   finalSignedFileName?: string;
@@ -49,7 +51,13 @@ export class AuditService {
     if (trail.sentAt) lines.push(`Sent at: ${trail.sentAt}`);
     if (trail.viewedAt) lines.push(`Viewed at: ${trail.viewedAt} | IP: ${trail.ipAtView ?? "n/a"} | UA: ${trail.userAgentAtView ?? "n/a"}`);
     if (trail.consentedAt) lines.push(`Consented at: ${trail.consentedAt}`);
-    if (trail.signedAt) lines.push(`Signed at: ${trail.signedAt} | IP: ${trail.ipAtSign ?? "n/a"} | UA: ${trail.userAgentAtSign ?? "n/a"}`);
+    if (trail.signedAt) {
+      let signedLine = `Signed at: ${trail.signedAt} | IP: ${trail.ipAtSign ?? "n/a"} | UA: ${trail.userAgentAtSign ?? "n/a"}`;
+      if (trail.signerFullName?.trim()) {
+        signedLine += ` | Full name: ${trail.signerFullName.trim()}`;
+      }
+      lines.push(signedLine);
+    }
     if (trail.finalSignedFileName) lines.push(`Signed file: ${trail.finalSignedFileName}`);
     if (trail.refusalReason) lines.push(`Refused: ${trail.refusalReason}`);
     if (trail.lastError) lines.push(`Last error: ${trail.lastError}`);

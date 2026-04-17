@@ -117,6 +117,24 @@ describe("PdfService signed output composition", () => {
     expect(decodedText).toContain("User agent ua");
   });
 
+  it("renders signer full name on last original page and Full name on styled audit Signed block", async () => {
+    const svc = new PdfService();
+    const src = await makeSourcePdfBytes(1);
+    const unique = "SignerName-UniquePdfMarker-xyz";
+    const trail: SigningAuditTrail = {
+      ...sampleTrail(),
+      signerFullName: unique,
+      signedAt: "2026-03-10T15:01:00.000Z"
+    };
+    const outPath = await svc.generateSignedPdfFromBytes(src, PNG_1X1_BASE64, trail);
+    const outBytes = await import("node:fs/promises").then((fs) => fs.readFile(outPath));
+    const inflated = inflateAllFlateStreams(outBytes);
+    const decodedText = decodePdfHexTextRuns(inflated);
+    expect(decodedText).toContain(unique);
+    expect(decodedText).toContain("Full name:");
+    expect(decodedText).toContain(`Full name: ${unique}`);
+  });
+
   it("Signed trail appears with timestamp when IP is not recorded", async () => {
     const svc = new PdfService();
     const src = await makeSourcePdfBytes(1);

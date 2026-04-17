@@ -36,6 +36,8 @@ export interface SigningSession {
   lastError?: string;
   /** Set after the signed PDF is emailed to the session `recipientEmail` (idempotent send guard). */
   signedContractEmailSentAt?: string;
+  /** Full name entered on the signing page at submit (trimmed). */
+  signerFullName?: string;
 }
 
 export class SigningService {
@@ -150,7 +152,8 @@ export class SigningService {
       tokenExpiresAt: dayjs(session.expiresAt).toISOString(),
       finalSignedFileName: session.finalSignedFileName,
       refusalReason: session.refusalReason,
-      lastError: session.lastError
+      lastError: session.lastError,
+      signerFullName: session.signerFullName
     };
   }
 
@@ -178,7 +181,13 @@ export class SigningService {
 
   markSigned(
     token: string,
-    meta: { ip: string; userAgent: string; finalSignedFileName: string; signedAt?: string }
+    meta: {
+      ip: string;
+      userAgent: string;
+      finalSignedFileName: string;
+      signedAt?: string;
+      signerFullName: string;
+    }
   ): void {
     const session = this.getSessionByToken(token);
     if (!session) {
@@ -189,6 +198,7 @@ export class SigningService {
     session.ipAtSign = meta.ip;
     session.userAgentAtSign = meta.userAgent;
     session.finalSignedFileName = meta.finalSignedFileName;
+    session.signerFullName = meta.signerFullName;
   }
 
   markRefused(token: string, params: { reason?: string; ip: string; userAgent: string }): void {

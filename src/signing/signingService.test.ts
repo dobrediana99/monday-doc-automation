@@ -69,10 +69,12 @@ describe("SigningService token validity", () => {
       ip: "1.2.3.4",
       userAgent: "ua",
       finalSignedFileName: "out.pdf",
-      signedAt: fixed
+      signedAt: fixed,
+      signerFullName: "Maria Ionescu"
     });
     expect(svc.getAuditTrail(session.token).signedAt).toBe(fixed);
     expect(svc.getAuditTrail(session.token).ipAtSign).toBe("1.2.3.4");
+    expect(svc.getAuditTrail(session.token).signerFullName).toBe("Maria Ionescu");
   });
 });
 

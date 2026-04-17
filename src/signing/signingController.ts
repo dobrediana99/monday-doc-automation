@@ -5,9 +5,14 @@ import { AuditService } from "./auditService";
 import { PdfService } from "../documents/pdfService";
 import { SigningFlow } from "../flows/signingFlow";
 
-const SignSubmitSchema = z.object({
+export const SignSubmitSchema = z.object({
   consent: z.literal(true),
-  signaturePngBase64: z.string().min(50)
+  signaturePngBase64: z.string().min(50),
+  signerFullName: z
+    .string()
+    .max(400)
+    .transform((s) => s.normalize("NFC").trim())
+    .refine((s) => s.length > 0, { message: "Invalid payload" })
 });
 
 const RefuseSchema = z.object({
@@ -137,7 +142,8 @@ export function createSigningRouter(params: {
         ...params.signingService.getAuditTrail(token),
         signedAt,
         ipAtSign: ip,
-        userAgentAtSign: userAgent
+        userAgentAtSign: userAgent,
+        signerFullName: parsed.data.signerFullName
       };
 
       const sourceBytes = await params.signingFlow.getSourcePdfBytes(token);
@@ -152,7 +158,8 @@ export function createSigningRouter(params: {
         ip,
         userAgent,
         finalSignedFileName: finalFileName,
-        signedAt
+        signedAt,
+        signerFullName: parsed.data.signerFullName
       });
 
       try {
@@ -277,6 +284,14 @@ export function renderSignPage(token: string): string {
           </div>
         </div>
         <div class="row">
+          <label for="signerFullName" style="display:block;margin-bottom:6px;font-weight:600;">Nume complet / Full name</label>
+          <input id="signerFullName" type="text" maxlength="400" autocomplete="name"
+            style="width:100%;max-width:100%;box-sizing:border-box;padding:8px;border:1px solid #cfd6e4;border-radius:8px;" />
+          <div class="muted" style="margin-top:6px;">
+            Obligatoriu înainte de trimiterea semnăturii. / Required before submitting your signature.
+          </div>
+        </div>
+        <div class="row">
           <canvas id="sig"></canvas>
         </div>
         <div class="row" style="display:flex; gap: 10px; flex-wrap: wrap;">
@@ -377,12 +392,18 @@ export function renderSignPage(token: string): string {
         resizeCanvasPreserve();
       });
 
+      function fullNameTrimmed() {
+        return (document.getElementById('signerFullName').value || '').trim();
+      }
+
       function updateSubmitState() {
         const consent = document.getElementById('consent').checked;
-        document.getElementById('submit').disabled = !(consent && hasInk);
+        const nameOk = fullNameTrimmed().length > 0;
+        document.getElementById('submit').disabled = !(consent && hasInk && nameOk);
       }
 
       document.getElementById('consent').addEventListener('change', updateSubmitState);
+      document.getElementById('signerFullName').addEventListener('input', updateSubmitState);
 
       document.getElementById('clear').onclick = () => {
         const rect = canvas.getBoundingClientRect();
@@ -398,6 +419,15 @@ export function renderSignPage(token: string): string {
           return;
         }
 
+        const fullName = fullNameTrimmed();
+        if (!fullName) {
+          const status = document.getElementById('status');
+          bilingualStatus(status,
+            'Te rugăm să completezi numele complet.',
+            'Please enter the full name.');
+          return;
+        }
+
         const signaturePngBase64 = canvas.toDataURL('image/png');
         const status = document.getElementById('status');
         bilingualStatus(status, 'Se trimite semnatura...', 'Submitting signature...');
@@ -405,7 +435,7 @@ export function renderSignPage(token: string): string {
         const resp = await fetch('/sign/${encodedToken}/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consent: true, signaturePngBase64 })
+          body: JSON.stringify({ consent: true, signaturePngBase64, signerFullName: fullName })
         });
 
         const data = await resp.json();
@@ -419,6 +449,7 @@ export function renderSignPage(token: string): string {
         document.getElementById('submit').disabled = true;
         document.getElementById('refuse').disabled = true;
         document.getElementById('clear').disabled = true;
+        document.getElementById('signerFullName').disabled = true;
       };
 
       document.getElementById('refuse').onclick = async () => {
@@ -441,6 +472,7 @@ export function renderSignPage(token: string): string {
         document.getElementById('submit').disabled = true;
         document.getElementById('refuse').disabled = true;
         document.getElementById('clear').disabled = true;
+        document.getElementById('signerFullName').disabled = true;
       };
     </script>
   </body>
