@@ -20,12 +20,19 @@ describe("SigningFlow signed-contract recipient email", () => {
 
   function makeDeps() {
     const mondayClient = {
-      getItemById: vi.fn(),
+      getItemById: vi.fn().mockResolvedValue({
+        id: "1",
+        name: "Item",
+        board: { id: "b1" },
+        column_values: [],
+        assets: []
+      } as MondayItem),
       getColumnTextById: (_item: MondayItem) => ({}),
       updateStatus: vi.fn().mockResolvedValue(undefined),
       resolveLatestFileAssetFromFileColumn: vi.fn(),
       updateText: vi.fn().mockResolvedValue(undefined),
-      uploadFile: vi.fn().mockResolvedValue(undefined)
+      uploadFile: vi.fn().mockResolvedValue(undefined),
+      resolvePrincipalCcEmail: vi.fn().mockResolvedValue(null)
     } as unknown as MondayClient;
 
     const gmailService = {

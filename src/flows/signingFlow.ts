@@ -4,6 +4,7 @@ import { MondayClient } from "../monday/mondayClient";
 import { GmailService } from "../email/gmailService";
 import { SigningService } from "../signing/signingService";
 import { signingEmailLanguageFromClientCountry } from "../email/signingEmailLocale";
+import { signingPrincipalCcAddresses } from "../email/signingEmailCc";
 import {
   buildSignatureRequestEmail,
   buildSignedDocumentDeliveryEmail
@@ -139,10 +140,14 @@ export class SigningFlow {
         signingUrl
       });
 
+      const principalCc = await this.mondayClient.resolvePrincipalCcEmail(item);
+      const cc = signingPrincipalCcAddresses(resolved.email, principalCc?.email ?? null);
+
       await this.gmailService.sendEmail({
         to: resolved.email,
         subject: invite.subject,
-        html: invite.html
+        html: invite.html,
+        cc
       });
 
       // On email successfully sent
@@ -198,12 +203,30 @@ export class SigningFlow {
         orderNumber: session.signingOrderReference
       });
 
+      let cc: string[] | undefined;
+      try {
+        const itemForCc = await this.mondayClient.getItemById(session.itemId);
+        const principalCc = await this.mondayClient.resolvePrincipalCcEmail(itemForCc);
+        cc = signingPrincipalCcAddresses(session.recipientEmail, principalCc?.email ?? null);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          JSON.stringify({
+            event: "principal_cc_resolution_failed",
+            itemId: session.itemId,
+            boardId: session.boardId,
+            message: message.slice(0, 200)
+          })
+        );
+      }
+
       await this.gmailService.sendEmailWithPdfAttachment({
         to: session.recipientEmail,
         subject: delivery.subject,
         html: delivery.html,
         pdfBytes,
-        attachmentFileName: path.basename(attachmentFileName)
+        attachmentFileName: path.basename(attachmentFileName),
+        cc
       });
 
       this.signingService.markSignedContractEmailSent(params.token);
@@ -212,7 +235,8 @@ export class SigningFlow {
           event: "signing_signed_contract_email_sent",
           itemId: session.itemId,
           flowType: session.flowType,
-          to: session.recipientEmail
+          to: session.recipientEmail,
+          principalCcApplied: Boolean(cc?.length)
         })
       );
     } finally {

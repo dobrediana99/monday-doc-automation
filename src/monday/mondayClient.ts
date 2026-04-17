@@ -6,11 +6,14 @@ import {
   GET_ASSETS_BY_IDS,
   GET_ITEM_BY_ID,
   GET_STATUS_COLUMN_SETTINGS,
+  GET_USERS_BY_IDS,
   UPDATE_LINK,
   UPDATE_STATUS,
   UPDATE_TEXT,
   UPDATE_TEXT_VIA_COLUMN_VALUE
 } from "./queries";
+import { PRINCIPAL_PEOPLE_COLUMN_ID } from "../utils/mapping";
+import { extractFirstPersonUserIdFromPeopleColumnJson } from "./principalPersonUserId";
 
 export interface MondayColumnValue {
   id: string;
@@ -164,6 +167,91 @@ export class MondayClient {
   async getAssetById(assetId: string): Promise<MondayAsset | null> {
     const data = await this.graphql<{ assets?: MondayAsset[] }>(GET_ASSETS_BY_IDS, { assetIds: [assetId] });
     return data.assets?.[0] ?? null;
+  }
+
+  /**
+   * Fetches Monday user email by numeric user id (people column assignee).
+   */
+  async getUserEmailById(userId: string): Promise<string | null> {
+    const data = await this.graphql<{ users?: Array<{ id?: string; email?: string | null }> }>(GET_USERS_BY_IDS, {
+      userIds: [userId]
+    });
+    const email = data.users?.[0]?.email?.trim();
+    if (!email || !email.includes("@")) {
+      return null;
+    }
+    return email;
+  }
+
+  /**
+   * Resolves the first person in the Principal people column to an email for signing-email CC.
+   * Never throws: logs and returns null on missing data, teams-only, or API failures.
+   */
+  async resolvePrincipalCcEmail(item: MondayItem): Promise<{ email: string; userId: string } | null> {
+    const boardId = item.board.id;
+    const itemId = item.id;
+    const column = item.column_values.find((c) => c.id === PRINCIPAL_PEOPLE_COLUMN_ID);
+    if (!column?.value?.trim()) {
+      console.info(
+        JSON.stringify({
+          event: "principal_cc_missing",
+          reason: "no_column_value",
+          itemId,
+          boardId
+        })
+      );
+      return null;
+    }
+
+    const userId = extractFirstPersonUserIdFromPeopleColumnJson(column.value);
+    if (!userId) {
+      console.info(
+        JSON.stringify({
+          event: "principal_cc_missing",
+          reason: "no_person_user_id",
+          itemId,
+          boardId
+        })
+      );
+      return null;
+    }
+
+    try {
+      const email = await this.getUserEmailById(userId);
+      if (!email) {
+        console.info(
+          JSON.stringify({
+            event: "principal_cc_missing",
+            reason: "no_email_from_monday",
+            itemId,
+            boardId,
+            principalUserId: userId
+          })
+        );
+        return null;
+      }
+      console.info(
+        JSON.stringify({
+          event: "principal_cc_resolved",
+          itemId,
+          boardId,
+          principalUserId: userId
+        })
+      );
+      return { email, userId };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        JSON.stringify({
+          event: "principal_cc_resolution_failed",
+          itemId,
+          boardId,
+          principalUserId: userId,
+          message: message.slice(0, 200)
+        })
+      );
+      return null;
+    }
   }
 
   async downloadAssetBytes(assetId: string): Promise<Buffer> {

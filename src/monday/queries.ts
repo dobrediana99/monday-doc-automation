@@ -123,3 +123,13 @@ export const GET_ASSETS_BY_IDS = `
     }
   }
 `;
+
+/** Resolve account email for people-column assignees (signing CC). */
+export const GET_USERS_BY_IDS = `
+  query GetUsersByIds($userIds: [ID!]!) {
+    users(ids: $userIds) {
+      id
+      email
+    }
+  }
+`;

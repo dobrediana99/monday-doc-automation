@@ -21,6 +21,9 @@ export const ORDER_NUMBER_COLUMN_ID = "text_mksnqpn0";
 /** Lookup "Tara Client" — client country of origin; drives signing email language (Romanian vs English). */
 export const CLIENT_COUNTRY_COLUMN_ID = "lookup_mkxttcky";
 
+/** People column "Principal" — CC on signing-related emails when user email resolves from Monday. */
+export const PRINCIPAL_PEOPLE_COLUMN_ID = "deal_owner";
+
 export const SIGN_TRIGGER_COLUMN = "color_mm28cpwk";
 
 export const SIGN_ERROR_TEXT_COLUMN = "text_mm28m315";

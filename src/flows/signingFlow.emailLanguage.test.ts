@@ -69,7 +69,8 @@ describe("SigningFlow email language from client country", () => {
         public_url: "p",
         file_extension: "pdf"
       }),
-      updateText: vi.fn().mockResolvedValue(undefined)
+      updateText: vi.fn().mockResolvedValue(undefined),
+      resolvePrincipalCcEmail: vi.fn().mockResolvedValue(null)
     } as unknown as MondayClient;
 
     const gmailService = {

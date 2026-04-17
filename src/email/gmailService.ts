@@ -38,8 +38,8 @@ export class GmailService {
     this.sender = config.sender;
   }
 
-  async sendEmail(params: { to: string; subject: string; html: string }): Promise<void> {
-    const raw = this.buildRawEmail(params.to, params.subject, params.html);
+  async sendEmail(params: { to: string; subject: string; html: string; cc?: string[] }): Promise<void> {
+    const raw = this.buildRawEmail(params.to, params.subject, params.html, params.cc);
     await this.gmail.users.messages.send({
       userId: "me",
       requestBody: {
@@ -54,6 +54,7 @@ export class GmailService {
     html: string;
     pdfBytes: Buffer;
     attachmentFileName: string;
+    cc?: string[];
   }): Promise<void> {
     const raw = this.buildRawMultipartWithPdf(params);
     await this.gmail.users.messages.send({
@@ -64,10 +65,13 @@ export class GmailService {
     });
   }
 
-  private buildRawEmail(to: string, subject: string, html: string): string {
+  private buildRawEmail(to: string, subject: string, html: string, cc?: string[]): string {
+    const headers: string[] = [`From: ${this.sender}`, `To: ${to}`];
+    if (cc && cc.length > 0) {
+      headers.push(`Cc: ${cc.join(", ")}`);
+    }
     const message = [
-      `From: ${this.sender}`,
-      `To: ${to}`,
+      ...headers,
       "Content-Type: text/html; charset=utf-8",
       "MIME-Version: 1.0",
       `Subject: ${encodeRfc2047Subject(subject)}`,
@@ -88,15 +92,20 @@ export class GmailService {
     html: string;
     pdfBytes: Buffer;
     attachmentFileName: string;
+    cc?: string[];
   }): string {
     const boundary = `mixed_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
     const safeName = params.attachmentFileName.replace(/[\r\n"]/g, "_");
     const htmlB64 = Buffer.from(params.html, "utf8").toString("base64");
     const pdfB64 = params.pdfBytes.toString("base64");
 
+    const headers: string[] = [`From: ${this.sender}`, `To: ${params.to}`];
+    if (params.cc && params.cc.length > 0) {
+      headers.push(`Cc: ${params.cc.join(", ")}`);
+    }
+
     const message = [
-      `From: ${this.sender}`,
-      `To: ${params.to}`,
+      ...headers,
       "MIME-Version: 1.0",
       `Subject: ${encodeRfc2047Subject(params.subject)}`,
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
