@@ -3,11 +3,17 @@ import { promises as fs } from "node:fs";
 import { MondayClient } from "../monday/mondayClient";
 import { GmailService } from "../email/gmailService";
 import { SigningService } from "../signing/signingService";
+import { signingEmailLanguageFromClientCountry } from "../email/signingEmailLocale";
 import {
+  buildSignatureRequestEmail,
+  buildSignedDocumentDeliveryEmail
+} from "../email/signingEmailTemplates";
+import {
+  CLIENT_COUNTRY_COLUMN_ID,
+  ORDER_NUMBER_COLUMN_ID,
   parseSigningFlowType,
   declinedLabelForFlow,
-  recipientDisplayNameFromColumns,
-  resolveRecipientEmail,
+      resolveRecipientEmail,
   SIGN_ERROR_LABEL,
   SIGN_ERROR_TEXT_COLUMN,
   SIGN_FLOW_STATUS_COLUMN,
@@ -108,7 +114,10 @@ export class SigningFlow {
       // Only now set main trigger status to Procesare
       await this.mondayClient.updateStatus(boardId, item.id, SIGN_TRIGGER_COLUMN, SIGN_PROCESSING_LABEL);
 
-      const recipientName = recipientDisplayNameFromColumns(columnTextById);
+      const clientCountryRaw = columnTextById[CLIENT_COUNTRY_COLUMN_ID] ?? "";
+      const signingEmailLanguage = signingEmailLanguageFromClientCountry(clientCountryRaw);
+      const nrCursa = (columnTextById[ORDER_NUMBER_COLUMN_ID] ?? "").trim();
+      const signingOrderReference = nrCursa.length > 0 ? nrCursa : item.name.trim();
 
       const session = this.signingService.createSession({
         itemId: item.id,
@@ -119,24 +128,21 @@ export class SigningFlow {
         sourcePdfName: latest.name,
         recipientEmail: resolved.email,
         emailSource: resolved.emailSource,
-        recipientName
+        signingEmailLanguage,
+        signingOrderReference
       });
 
       const signingUrl = `${this.appBaseUrl}/sign/${encodeURIComponent(session.token)}`;
+      const invite = buildSignatureRequestEmail({
+        language: signingEmailLanguage,
+        orderNumber: signingOrderReference,
+        signingUrl
+      });
 
       await this.gmailService.sendEmail({
         to: resolved.email,
-        subject: "Document pentru semnare / Document ready for signature",
-        html: `
-          <div style="font-family: Arial, sans-serif; line-height: 1.5;">
-            <h2 style="margin: 0 0 12px 0;">Semnare document</h2>
-            <p>Buna${recipientName ? `, ${recipientName}` : ""},</p>
-            <p>Te rugam sa semnezi electronic documentul folosind linkul securizat de mai jos:</p>
-            <p><a href="${signingUrl}">${signingUrl}</a></p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
-            <p style="margin: 0;">EN: Please electronically sign the document using the secure link above.</p>
-          </div>
-        `
+        subject: invite.subject,
+        html: invite.html
       });
 
       // On email successfully sent
@@ -186,20 +192,16 @@ export class SigningFlow {
       const pdfBytes = await fs.readFile(params.signedPdfPath);
       const attachmentFileName =
         session.finalSignedFileName ?? `${path.basename(session.sourcePdfName, ".pdf")}_signed.pdf`;
-      const safeTitle = this.escapeHtml(path.basename(attachmentFileName));
+
+      const delivery = buildSignedDocumentDeliveryEmail({
+        language: session.signingEmailLanguage,
+        orderNumber: session.signingOrderReference
+      });
 
       await this.gmailService.sendEmailWithPdfAttachment({
         to: session.recipientEmail,
-        subject: `Contract semnat - ${path.basename(attachmentFileName)}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; line-height: 1.5;">
-            <p>Buna ziua,</p>
-            <p>Va trimitem atasat documentul semnat${safeTitle ? ` (<strong>${safeTitle}</strong>)` : ""}.</p>
-            <p>O zi buna!</p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
-            <p style="margin: 0; font-size: 12px; color: #555;">EN: Please find the signed contract attached.</p>
-          </div>
-        `,
+        subject: delivery.subject,
+        html: delivery.html,
         pdfBytes,
         attachmentFileName: path.basename(attachmentFileName)
       });
@@ -216,14 +218,6 @@ export class SigningFlow {
     } finally {
       this.signedContractEmailInFlight.delete(params.token);
     }
-  }
-
-  private escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
   }
 
   async finalizeSignedDocument(params: {

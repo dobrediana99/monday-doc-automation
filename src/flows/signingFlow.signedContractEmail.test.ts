@@ -49,7 +49,9 @@ describe("SigningFlow signed-contract recipient email", () => {
       sourcePdfName: "Contract RO.pdf",
       recipientEmail: "client@example.com",
       emailSource: "primary",
-      recipientName: null
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "CLS8766"
     });
     signingService.markSigned(session.token, {
       ip: "1.1.1.1",
@@ -70,11 +72,13 @@ describe("SigningFlow signed-contract recipient email", () => {
       pdfBytes: Buffer;
       attachmentFileName: string;
       subject: string;
+      html: string;
     };
     expect(arg.to).toBe("client@example.com");
     expect(arg.attachmentFileName).toBe("Contract RO_signed.pdf");
-    expect(arg.subject).toContain("Contract semnat");
-    expect(arg.subject).toContain("Contract RO_signed.pdf");
+    expect(arg.subject).toBe("Signed document – CLS8766");
+    expect(arg.html).toContain("Please find attached the signed document");
+    expect(arg.html).not.toMatch(/Vă transmitem|Bună ziua,/);
     expect(Buffer.compare(arg.pdfBytes, pdfBytes)).toBe(0);
     expect(signingService.getSessionByToken(session.token)?.signedContractEmailSentAt).toBeTruthy();
   });
@@ -90,7 +94,9 @@ describe("SigningFlow signed-contract recipient email", () => {
       sourcePdfName: "doc.pdf",
       recipientEmail: "furnizor@supplier.test",
       emailSource: "transportator",
-      recipientName: null
+      recipientName: null,
+      signingEmailLanguage: "ro",
+      signingOrderReference: "T-99"
     });
     signingService.markSigned(session.token, {
       ip: "1.1.1.1",
@@ -104,8 +110,14 @@ describe("SigningFlow signed-contract recipient email", () => {
 
     await flow.sendSignedContractRecipientEmailIfNeeded({ token: session.token, signedPdfPath });
 
-    const arg = (gmailService.sendEmailWithPdfAttachment as ReturnType<typeof vi.fn>).mock.calls[0][0] as { to: string };
+    const arg = (gmailService.sendEmailWithPdfAttachment as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      to: string;
+      subject: string;
+    };
     expect(arg.to).toBe("furnizor@supplier.test");
+    expect(arg.subject).toBe("Transmitere document semnat – T-99");
+    expect(arg.html).toContain("Vă transmitem atașat documentul semnat");
+    expect(arg.html).not.toContain("Please find attached");
   });
 
   it("does not send duplicate emails when completion path runs twice", async () => {
@@ -119,7 +131,9 @@ describe("SigningFlow signed-contract recipient email", () => {
       sourcePdfName: "doc.pdf",
       recipientEmail: "client@example.com",
       emailSource: "primary",
-      recipientName: null
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "ORD-3"
     });
     signingService.markSigned(session.token, {
       ip: "1.1.1.1",

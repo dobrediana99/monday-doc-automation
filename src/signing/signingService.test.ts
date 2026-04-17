@@ -22,7 +22,9 @@ describe("SigningService token validity", () => {
       sourcePdfName: "a.pdf",
       recipientEmail: "x@example.com",
       emailSource: "primary",
-      recipientName: null
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "ORD-1"
     });
     expect(svc.isTokenValid(session.token)).toBe(true);
   });
@@ -38,7 +40,9 @@ describe("SigningService token validity", () => {
       sourcePdfName: "a.pdf",
       recipientEmail: "x@example.com",
       emailSource: "primary",
-      recipientName: null
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "ORD-1"
     });
     vi.advanceTimersByTime(1_001);
     expect(svc.isTokenValid(session.token)).toBe(false);
@@ -55,7 +59,9 @@ describe("SigningService token validity", () => {
       sourcePdfName: "a.pdf",
       recipientEmail: "x@example.com",
       emailSource: "primary",
-      recipientName: null
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "ORD-1"
     });
     const fixed = "2026-05-01T10:00:00.000Z";
     vi.advanceTimersByTime(5_000);

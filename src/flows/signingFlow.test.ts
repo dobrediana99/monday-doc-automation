@@ -41,7 +41,10 @@ describe("SigningFlow resend behavior for expired links", () => {
       getItemById: vi.fn(),
       getColumnTextById: (item: MondayItem) => {
         const out: Record<string, string> = {};
-        for (const col of item.column_values) out[col.id] = col.text ?? "";
+        for (const col of item.column_values) {
+          const dv = col.display_value?.trim();
+          out[col.id] = dv && dv.length > 0 ? dv : (col.text ?? "");
+        }
         return out;
       },
       updateStatus: vi.fn().mockResolvedValue(undefined),
@@ -75,7 +78,9 @@ describe("SigningFlow resend behavior for expired links", () => {
       sourcePdfName: "doc.pdf",
       recipientEmail: "client@example.com",
       emailSource: "primary",
-      recipientName: null
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "Item"
     });
     const item = itemFixture({
       itemId: "1",
@@ -106,7 +111,9 @@ describe("SigningFlow resend behavior for expired links", () => {
       sourcePdfName: "doc.pdf",
       recipientEmail: "client@example.com",
       emailSource: "primary",
-      recipientName: null
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "Item"
     });
     vi.advanceTimersByTime(1_001);
 
@@ -138,7 +145,9 @@ describe("SigningFlow resend behavior for expired links", () => {
       sourcePdfName: "doc.pdf",
       recipientEmail: "client@example.com",
       emailSource: "primary",
-      recipientName: null
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "Item"
     });
     vi.advanceTimersByTime(1_001);
 
@@ -166,7 +175,9 @@ describe("SigningFlow resend behavior for expired links", () => {
       sourcePdfName: "doc.pdf",
       recipientEmail: "client@example.com",
       emailSource: "primary",
-      recipientName: null
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "Item"
     });
 
     const item = itemFixture({

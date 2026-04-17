@@ -18,6 +18,9 @@ export const GENERATION_TRIGGER_COLUMNS = new Set([
 /** Text column "Nr. cursa" — canonical order / cursă id for generated PDF names (e.g. CLS01609). Verify in Monday developer mode if filenames look wrong. */
 export const ORDER_NUMBER_COLUMN_ID = "text_mksnqpn0";
 
+/** Lookup "Tara Client" — client country of origin; drives signing email language (Romanian vs English). */
+export const CLIENT_COUNTRY_COLUMN_ID = "lookup_mkxttcky";
+
 export const SIGN_TRIGGER_COLUMN = "color_mm28cpwk";
 
 export const SIGN_ERROR_TEXT_COLUMN = "text_mm28m315";

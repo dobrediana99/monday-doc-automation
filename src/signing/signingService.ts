@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import dayjs from "dayjs";
+import type { SigningEmailLanguage } from "../email/signingEmailLocale";
 import type { ClientEmailSource, SigningFlowType } from "../utils/mapping";
 import type { SigningAuditTrail } from "./auditService";
 
@@ -15,6 +16,10 @@ export interface SigningSession {
   recipientEmail: string;
   emailSource: ClientEmailSource | "transportator";
   recipientName?: string | null;
+  /** Language for signing invite + signed-document delivery (from client country at session start). */
+  signingEmailLanguage: SigningEmailLanguage;
+  /** Order / cursă reference for email subjects (Nr. cursă or item name). */
+  signingOrderReference: string;
   createdAt: number;
   expiresAt: number;
   status: "active" | "signed" | "refused";
@@ -49,6 +54,8 @@ export class SigningService {
     recipientEmail: string;
     emailSource: ClientEmailSource | "transportator";
     recipientName?: string | null;
+    signingEmailLanguage: SigningEmailLanguage;
+    signingOrderReference: string;
   }): SigningSession {
     this.cleanupExpired();
 
@@ -68,6 +75,8 @@ export class SigningService {
       recipientEmail: input.recipientEmail,
       emailSource: input.emailSource,
       recipientName: input.recipientName ?? null,
+      signingEmailLanguage: input.signingEmailLanguage,
+      signingOrderReference: input.signingOrderReference,
       createdAt: now,
       expiresAt: now + this.ttlMs,
       status: "active"
