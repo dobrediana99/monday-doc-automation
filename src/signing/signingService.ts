@@ -18,7 +18,7 @@ export interface SigningSession {
   recipientName?: string | null;
   /** Language for signing invite + signed-document delivery (from client country at session start). */
   signingEmailLanguage: SigningEmailLanguage;
-  /** Order / cursă reference for email subjects (Nr. cursă or item name). */
+  /** Order / transport identifier used in email subjects (from Monday column `pulse_id_mks1dcwz`, with fallback). */
   signingOrderReference: string;
   createdAt: number;
   expiresAt: number;

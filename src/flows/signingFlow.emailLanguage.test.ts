@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { MondayClient, MondayItem } from "../monday/mondayClient";
 import type { GmailService } from "../email/gmailService";
-import { CLIENT_COUNTRY_COLUMN_ID, ORDER_NUMBER_COLUMN_ID } from "../utils/mapping";
+import { CLIENT_COUNTRY_COLUMN_ID, EMAIL_SUBJECT_ORDER_ID_COLUMN_ID } from "../utils/mapping";
 import { SigningService } from "../signing/signingService";
 import { SigningFlow } from "./signingFlow";
 
@@ -17,7 +17,7 @@ function mondayLikeColumnTextById(item: MondayItem): Record<string, string> {
 function baseItem(params: {
   countryText?: string;
   countryDisplay?: string;
-  orderNr?: string;
+  pulseId?: string;
   itemName?: string;
 }): MondayItem {
   const cols: MondayItem["column_values"] = [
@@ -31,8 +31,8 @@ function baseItem(params: {
       type: "lookup"
     },
     {
-      id: ORDER_NUMBER_COLUMN_ID,
-      text: params.orderNr ?? "",
+      id: EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
+      text: params.pulseId ?? "",
       value: null,
       type: "text"
     }
@@ -86,7 +86,7 @@ describe("SigningFlow email language from client country", () => {
   it("sends Romanian signature request when Tara Client is Romania", async () => {
     const { mondayClient, gmailService, flow } = makeFlow();
     mondayClient.getItemById = vi.fn().mockResolvedValue(
-      baseItem({ countryDisplay: "România", orderNr: "CLS8766" })
+      baseItem({ countryDisplay: "România", pulseId: "CLS8766" })
     );
 
     await flow.startSigning("1", "Trimite Client");
@@ -106,7 +106,7 @@ describe("SigningFlow email language from client country", () => {
   it("sends English signature request when Tara Client is not Romania", async () => {
     const { mondayClient, gmailService, flow } = makeFlow();
     mondayClient.getItemById = vi.fn().mockResolvedValue(
-      baseItem({ countryDisplay: "Germany", orderNr: "CLS8766" })
+      baseItem({ countryDisplay: "Germany", pulseId: "CLS8766" })
     );
 
     await flow.startSigning("1", "Trimite Client");
@@ -121,10 +121,10 @@ describe("SigningFlow email language from client country", () => {
     expect(arg.html).not.toContain("Vă rugăm să semnați");
   });
 
-  it("uses item name as order reference when Nr. cursa is empty", async () => {
+  it("uses item name as order reference when pulse id is empty", async () => {
     const { mondayClient, gmailService, flow } = makeFlow();
     mondayClient.getItemById = vi.fn().mockResolvedValue(
-      baseItem({ countryText: "Romania", orderNr: "", itemName: "ONLY-NAME" })
+      baseItem({ countryText: "Romania", pulseId: "", itemName: "ONLY-NAME" })
     );
 
     await flow.startSigning("1", "Trimite Client");

@@ -18,6 +18,12 @@ export const GENERATION_TRIGGER_COLUMNS = new Set([
 /** Text column "Nr. cursa" — canonical order / cursă id for generated PDF names (e.g. CLS01609). Verify in Monday developer mode if filenames look wrong. */
 export const ORDER_NUMBER_COLUMN_ID = "text_mksnqpn0";
 
+/**
+ * Text/lookup column used as transport/order identifier for EMAIL SUBJECTS (e.g. CLS-01609).
+ * Requirement: all outgoing email subjects must include this value.
+ */
+export const EMAIL_SUBJECT_ORDER_ID_COLUMN_ID = "pulse_id_mks1dcwz";
+
 /** Lookup "Tara Client" — client country of origin; drives signing email language (Romanian vs English). */
 export const CLIENT_COUNTRY_COLUMN_ID = "lookup_mkxttcky";
 

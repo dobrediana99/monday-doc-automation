@@ -11,6 +11,7 @@ import {
 } from "../email/signingEmailTemplates";
 import {
   CLIENT_COUNTRY_COLUMN_ID,
+  EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
   ORDER_NUMBER_COLUMN_ID,
   parseSigningFlowType,
   declinedLabelForFlow,
@@ -117,8 +118,13 @@ export class SigningFlow {
 
       const clientCountryRaw = columnTextById[CLIENT_COUNTRY_COLUMN_ID] ?? "";
       const signingEmailLanguage = signingEmailLanguageFromClientCountry(clientCountryRaw);
-      const nrCursa = (columnTextById[ORDER_NUMBER_COLUMN_ID] ?? "").trim();
-      const signingOrderReference = nrCursa.length > 0 ? nrCursa : item.name.trim();
+      const emailOrderId = (columnTextById[EMAIL_SUBJECT_ORDER_ID_COLUMN_ID] ?? "").trim();
+      // UX: prefer the configured email identifier; keep a non-empty fallback to avoid blank subjects.
+      const fallbackOrderId =
+        (columnTextById[ORDER_NUMBER_COLUMN_ID] ?? "").trim().length > 0
+          ? (columnTextById[ORDER_NUMBER_COLUMN_ID] ?? "").trim()
+          : item.name.trim();
+      const signingOrderReference = emailOrderId.length > 0 ? emailOrderId : fallbackOrderId;
 
       const session = this.signingService.createSession({
         itemId: item.id,
