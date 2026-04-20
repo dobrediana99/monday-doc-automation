@@ -193,6 +193,17 @@ export function createMondayWebhookRouter(params: {
         }
 
         await params.signingFlow.startSigning(itemId, newStatus);
+        params.idempotency.forget(dedupeKey);
+        console.info(
+          JSON.stringify({
+            event: "signing_start_allowed_after_success",
+            itemId,
+            ...(boardId !== undefined ? { boardId } : {}),
+            columnId: event.columnId,
+            newStatus,
+            note: "idempotency_key_released_after_success"
+          })
+        );
         return res.status(200).json({ ok: true, workflow: "signing_email" });
       }
 

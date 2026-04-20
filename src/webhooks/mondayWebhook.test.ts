@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DocumentGenerationFlow } from "../flows/documentGeneration";
 import { GenerationValidationError } from "../flows/generationErrors";
 import type { SigningFlow } from "../flows/signingFlow";
-import { GENERATION_TRIGGER_COLUMNS } from "../utils/mapping";
+import { GENERATION_TRIGGER_COLUMNS, SIGN_TRIGGER_COLUMN } from "../utils/mapping";
 import { IdempotencyService } from "../utils/idempotency";
 import { createMondayWebhookRouter } from "./mondayWebhook";
 
@@ -62,6 +62,17 @@ function generationPayload(itemId: number, boardId?: number) {
       pulseId: itemId,
       columnId: GEN_COLUMN_ID,
       value: { label: { text: "Client SRL" } }
+    }
+  };
+}
+
+function signingPayload(itemId: number, value: string, boardId?: number) {
+  return {
+    event: {
+      ...(boardId !== undefined ? { boardId } : {}),
+      pulseId: itemId,
+      columnId: SIGN_TRIGGER_COLUMN,
+      value: { label: { text: value } }
     }
   };
 }
@@ -186,5 +197,53 @@ describe("createMondayWebhookRouter document generation idempotency", () => {
     expect((r1.json as { skipped?: string }).skipped).toBe("unsupported_generation_value");
     expect((r2.json as { workflow?: string }).workflow).toBe("document_generation");
     expect(process).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("createMondayWebhookRouter signing idempotency", () => {
+  it("releases idempotency key after successful signing start so the same trigger can be retried later", async () => {
+    const idempotency = new IdempotencyService(60_000);
+    const startSigning = vi.fn().mockResolvedValue(undefined);
+    const app = makeApp({
+      documentFlow: { process: vi.fn() },
+      signingFlow: { startSigning },
+      idempotency
+    });
+
+    const body = signingPayload(3001, "Trimite Client");
+    const r1 = await postMonday(app, body);
+    const r2 = await postMonday(app, body);
+
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(200);
+    expect((r1.json as { workflow?: string }).workflow).toBe("signing_email");
+    expect((r2.json as { workflow?: string }).workflow).toBe("signing_email");
+    expect(startSigning).toHaveBeenCalledTimes(2);
+  });
+
+  it("still returns duplicate for a concurrent second delivery while signing start is in-flight", async () => {
+    const idempotency = new IdempotencyService(60_000);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const startSigning = vi.fn().mockImplementation(() => gate);
+    const app = makeApp({
+      documentFlow: { process: vi.fn() },
+      signingFlow: { startSigning },
+      idempotency
+    });
+
+    const body = signingPayload(3002, "Trimite Transportator", 2030349838);
+    const both = Promise.all([postMonday(app, body), postMonday(app, body)]);
+    await new Promise<void>((r) => setTimeout(r, 40));
+    release();
+    const [a, b] = await both;
+
+    const skippedDup = [a, b].find((r) => (r.json as { skipped?: string }).skipped === "duplicate");
+    const okSign = [a, b].find((r) => (r.json as { workflow?: string }).workflow === "signing_email");
+    expect(skippedDup).toBeDefined();
+    expect(okSign).toBeDefined();
+    expect(startSigning).toHaveBeenCalledTimes(1);
   });
 });
