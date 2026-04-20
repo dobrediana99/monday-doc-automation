@@ -9,14 +9,27 @@ import {
   resolveOrderSlugForFilename,
   sanitizeOrderIdentifierFromItemName
 } from "./generatedDocumentName";
-import { ORDER_NUMBER_COLUMN_ID } from "./mapping";
+import { EMAIL_SUBJECT_ORDER_ID_COLUMN_ID, ORDER_NUMBER_COLUMN_ID } from "./mapping";
 
-function itemFixture(params: { name: string; loadingDateText?: string; nrCursaText?: string }): MondayItem {
+function itemFixture(params: {
+  name: string;
+  loadingDateText?: string;
+  nrCursaText?: string;
+  pulseIdText?: string;
+}): MondayItem {
   const column_values: MondayItem["column_values"] = [];
   if (params.loadingDateText !== undefined) {
     column_values.push({
       id: ORDER_DATE_COLUMN_ID,
       text: params.loadingDateText,
+      value: null,
+      type: "text"
+    });
+  }
+  if (params.pulseIdText !== undefined) {
+    column_values.push({
+      id: EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
+      text: params.pulseIdText,
       value: null,
       type: "text"
     });
@@ -52,6 +65,17 @@ describe("formatOrderDateDdMmYyyy", () => {
 });
 
 describe("resolveOrderSlugForFilename", () => {
+  it("prefers pulse id column over Nr. cursa and pulse name", () => {
+    const item = itemFixture({
+      name: "TEST",
+      loadingDateText: "10.04.2026",
+      pulseIdText: "CLS01609",
+      nrCursaText: "CLS00000"
+    });
+    expect(resolveOrderSlugForFilename(item)).toBe("CLS01609");
+    expect(buildGeneratedDocumentBaseName({ selectedValue: "Client SRL", item })).toBe("ctr_client_RO_CLS01609_10-04-2026");
+  });
+
   it("prefers Nr. cursa column over pulse name", () => {
     const item = itemFixture({
       name: "TEST",
@@ -181,11 +205,21 @@ describe("buildGeneratedPdfFileName", () => {
   it("unsigned upload basename never uses pulse company name when Nr. cursa is missing", () => {
     const item = itemFixture({
       name: "Client_RO_TEST",
+      loadingDateText: "10.04.2026",
+      pulseIdText: "CLS01609"
+    });
+    const pdf = buildGeneratedPdfFileName("Client SRL", item);
+    expect(pdf).toBe("ctr_client_RO_CLS01609_10-04-2026.pdf");
+    expect(pdf).not.toContain("TEST");
+    expect(pdf).not.toContain("Client_RO");
+  });
+
+  it("still uses stable placeholder when pulse id and Nr. cursa are missing", () => {
+    const item = itemFixture({
+      name: "Client_RO_TEST",
       loadingDateText: "10.04.2026"
     });
     const pdf = buildGeneratedPdfFileName("Client SRL", item);
     expect(pdf).toBe("ctr_client_RO_order_10-04-2026.pdf");
-    expect(pdf).not.toContain("TEST");
-    expect(pdf).not.toContain("Client_RO");
   });
 });

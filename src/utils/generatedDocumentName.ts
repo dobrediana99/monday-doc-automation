@@ -3,6 +3,7 @@ import customParseFormat from "dayjs/plugin/customParseFormat";
 import type { MondayColumnValue, MondayItem } from "../monday/mondayClient";
 import { extractColumnDisplayText } from "./mondayValues";
 import {
+  EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
   ORDER_NUMBER_COLUMN_ID,
   type GenerationLegalForm,
   type GenerationPartyKind,
@@ -104,11 +105,17 @@ function readFilenameOrderSlugFromColumn(item: MondayItem, columnId: string): st
 }
 
 /**
- * Order segment for `ctr_*_*_<slug>_<date>.pdf`: prefer Monday "Nr. cursa" ({@link ORDER_NUMBER_COLUMN_ID}),
+ * Order segment for `ctr_*_*_<slug>_<date>.pdf`: prefer Monday order/pulse id ({@link EMAIL_SUBJECT_ORDER_ID_COLUMN_ID}),
+ * else Monday "Nr. cursa" ({@link ORDER_NUMBER_COLUMN_ID}),
  * else any column whose entire value matches `CLS` + digits (case-insensitive).
  * Does not use the item pulse name (often company/test title) — missing data yields the stable placeholder `order`.
  */
 export function resolveOrderSlugForFilename(item: MondayItem): string {
+  const fromPulseId = readFilenameOrderSlugFromColumn(item, EMAIL_SUBJECT_ORDER_ID_COLUMN_ID);
+  if (fromPulseId) {
+    return fromPulseId;
+  }
+
   const fromNrCursa = readFilenameOrderSlugFromColumn(item, ORDER_NUMBER_COLUMN_ID);
   if (fromNrCursa) {
     return fromNrCursa;
