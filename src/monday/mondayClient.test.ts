@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import axios from "axios";
+import type { MondayItem } from "./mondayClient";
 import { MondayClient } from "./mondayClient";
+import { EMAIL_SUBJECT_ORDER_ID_COLUMN_ID } from "../utils/mapping";
 
 describe("MondayClient.getAssetById", () => {
   afterEach(() => {
@@ -36,5 +38,29 @@ describe("MondayClient.getAssetById", () => {
     expect(body.variables).toEqual({ assetIds: ["123456789"] });
     expect(body.query).toContain("query GetAssetsByIds($assetIds: [ID!]!)");
     expect(body.query).toContain("assets(ids: $assetIds)");
+  });
+});
+
+describe("MondayClient.getColumnTextById", () => {
+  it("uses robust extraction (value JSON) when text is empty (pulse_id_mks1dcwz)", () => {
+    const client = new MondayClient("test-token", "https://api.monday.com/v2");
+    const item: MondayItem = {
+      id: "1",
+      name: "TEST_diana",
+      board: { id: "b1" },
+      assets: [],
+      column_values: [
+        {
+          id: EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
+          type: "text",
+          text: "",
+          display_value: "",
+          value: JSON.stringify({ text: "CLS-01609" })
+        }
+      ]
+    };
+
+    const columnText = client.getColumnTextById(item);
+    expect(columnText[EMAIL_SUBJECT_ORDER_ID_COLUMN_ID]).toBe("CLS-01609");
   });
 });

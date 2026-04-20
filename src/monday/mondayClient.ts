@@ -13,6 +13,7 @@ import {
   UPDATE_TEXT_VIA_COLUMN_VALUE
 } from "./queries";
 import { PRINCIPAL_PEOPLE_COLUMN_ID } from "../utils/mapping";
+import { extractColumnDisplayText } from "../utils/mondayValues";
 import { extractFirstPersonUserIdFromPeopleColumnJson } from "./principalPersonUserId";
 
 export interface MondayColumnValue {
@@ -77,10 +78,7 @@ export class MondayClient {
   getColumnTextById(item: MondayItem): Record<string, string> {
     const out: Record<string, string> = {};
     for (const col of item.column_values) {
-      out[col.id] = col.text ?? "";
-      if (col.display_value && col.display_value.trim().length > 0) {
-        out[col.id] = col.display_value;
-      }
+      out[col.id] = extractColumnDisplayText(col);
     }
     return out;
   }

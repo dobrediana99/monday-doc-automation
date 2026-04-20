@@ -2,14 +2,14 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { MondayClient, MondayItem } from "../monday/mondayClient";
 import type { GmailService } from "../email/gmailService";
 import { CLIENT_COUNTRY_COLUMN_ID, EMAIL_SUBJECT_ORDER_ID_COLUMN_ID } from "../utils/mapping";
+import { extractColumnDisplayText } from "../utils/mondayValues";
 import { SigningService } from "../signing/signingService";
 import { SigningFlow } from "./signingFlow";
 
-function mondayLikeColumnTextById(item: MondayItem): Record<string, string> {
+function robustColumnTextById(item: MondayItem): Record<string, string> {
   const out: Record<string, string> = {};
   for (const col of item.column_values) {
-    const dv = col.display_value?.trim();
-    out[col.id] = dv && dv.length > 0 ? dv : (col.text ?? "");
+    out[col.id] = extractColumnDisplayText(col);
   }
   return out;
 }
@@ -18,6 +18,7 @@ function baseItem(params: {
   countryText?: string;
   countryDisplay?: string;
   pulseId?: string;
+  pulseIdValueJsonText?: string;
   itemName?: string;
 }): MondayItem {
   const cols: MondayItem["column_values"] = [
@@ -33,7 +34,7 @@ function baseItem(params: {
     {
       id: EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
       text: params.pulseId ?? "",
-      value: null,
+      value: params.pulseIdValueJsonText ? JSON.stringify({ text: params.pulseIdValueJsonText }) : null,
       type: "text"
     }
   ];
@@ -60,7 +61,7 @@ describe("SigningFlow email language from client country", () => {
   function makeFlow() {
     const mondayClient = {
       getItemById: vi.fn(),
-      getColumnTextById: (item: MondayItem) => mondayLikeColumnTextById(item),
+      getColumnTextById: (item: MondayItem) => robustColumnTextById(item),
       updateStatus: vi.fn().mockResolvedValue(undefined),
       resolveLatestFileAssetFromFileColumn: vi.fn().mockResolvedValue({
         assetId: "asset1",
@@ -131,5 +132,18 @@ describe("SigningFlow email language from client country", () => {
 
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string };
     expect(arg.subject).toContain("ONLY-NAME");
+  });
+
+  it("uses pulse_id_mks1dcwz from value JSON when text is empty (no item.name fallback)", async () => {
+    const { mondayClient, gmailService, flow } = makeFlow();
+    mondayClient.getItemById = vi.fn().mockResolvedValue(
+      baseItem({ countryDisplay: "Germany", pulseId: "", pulseIdValueJsonText: "CLS-01609", itemName: "TEST_diana" })
+    );
+
+    await flow.startSigning("1", "Trimite Client");
+
+    const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string };
+    expect(arg.subject).toBe("Signature request for shipment order – CLS-01609");
+    expect(arg.subject).not.toContain("TEST_diana");
   });
 });

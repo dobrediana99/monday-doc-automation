@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { MondayClient, MondayItem } from "../monday/mondayClient";
 import type { GmailService } from "../email/gmailService";
+import { EMAIL_SUBJECT_ORDER_ID_COLUMN_ID } from "../utils/mapping";
 import { SigningService } from "../signing/signingService";
 import { SigningFlow } from "./signingFlow";
 
@@ -24,7 +25,15 @@ describe("SigningFlow signed-contract recipient email", () => {
         id: "1",
         name: "Item",
         board: { id: "b1" },
-        column_values: [],
+        column_values: [
+          {
+            id: EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
+            type: "text",
+            text: "",
+            display_value: "",
+            value: JSON.stringify({ text: "CLS-01609" })
+          }
+        ],
         assets: []
       } as MondayItem),
       getColumnTextById: (_item: MondayItem) => ({}),
