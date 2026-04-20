@@ -5,6 +5,31 @@ import { AuditService } from "./auditService";
 import { PdfService } from "../documents/pdfService";
 import { SigningFlow } from "../flows/signingFlow";
 
+/** User-visible bilingual validation (signing page + submit API). */
+export const SIGN_VALIDATION_CONSENT_RO =
+  "Te rugăm să confirmi că ai citit și ai înțeles documentul și că ești de acord să îl semnezi electronic.";
+export const SIGN_VALIDATION_CONSENT_EN =
+  "Please confirm that you have read and understood the document and agree to sign it electronically.";
+
+export const SIGN_VALIDATION_FULL_NAME_RO = "Te rugăm să completezi numele complet.";
+export const SIGN_VALIDATION_FULL_NAME_EN = "Please enter the full name.";
+
+const SIGN_VALIDATION_SUBMIT_GENERIC_RO =
+  "Datele trimise nu sunt valide. Te rugăm să reîncarci pagina și să încerci din nou.";
+const SIGN_VALIDATION_SUBMIT_GENERIC_EN =
+  "The submitted data is invalid. Please reload the page and try again.";
+
+export function bilingualMessagesForSignSubmitZodError(error: z.ZodError): { ro: string; en: string } {
+  const hasPath = (path: string) => error.issues.some((i) => i.path[0] === path);
+  if (hasPath("consent")) {
+    return { ro: SIGN_VALIDATION_CONSENT_RO, en: SIGN_VALIDATION_CONSENT_EN };
+  }
+  if (hasPath("signerFullName")) {
+    return { ro: SIGN_VALIDATION_FULL_NAME_RO, en: SIGN_VALIDATION_FULL_NAME_EN };
+  }
+  return { ro: SIGN_VALIDATION_SUBMIT_GENERIC_RO, en: SIGN_VALIDATION_SUBMIT_GENERIC_EN };
+}
+
 export const SignSubmitSchema = z.object({
   consent: z.literal(true),
   signaturePngBase64: z.string().min(50),
@@ -123,7 +148,8 @@ export function createSigningRouter(params: {
 
     const parsed = SignSubmitSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: "Invalid payload" });
+      const { ro, en } = bilingualMessagesForSignSubmitZodError(parsed.error);
+      return res.status(400).json({ errorRo: ro, errorEn: en, error: en });
     }
 
     try {
@@ -413,23 +439,20 @@ export function renderSignPage(token: string): string {
       };
 
       document.getElementById('submit').onclick = async () => {
+        const status = document.getElementById('status');
         const consent = document.getElementById('consent').checked;
         if (!consent) {
-          alert('Trebuie sa bifati confirmarea inainte de trimitere.\\n\\nEN: Consent is required before submitting.');
+          bilingualStatus(status, ${JSON.stringify(SIGN_VALIDATION_CONSENT_RO)}, ${JSON.stringify(SIGN_VALIDATION_CONSENT_EN)});
           return;
         }
 
         const fullName = fullNameTrimmed();
         if (!fullName) {
-          const status = document.getElementById('status');
-          bilingualStatus(status,
-            'Te rugăm să completezi numele complet.',
-            'Please enter the full name.');
+          bilingualStatus(status, ${JSON.stringify(SIGN_VALIDATION_FULL_NAME_RO)}, ${JSON.stringify(SIGN_VALIDATION_FULL_NAME_EN)});
           return;
         }
 
         const signaturePngBase64 = canvas.toDataURL('image/png');
-        const status = document.getElementById('status');
         bilingualStatus(status, 'Se trimite semnatura...', 'Submitting signature...');
 
         const resp = await fetch('/sign/${encodedToken}/submit', {
@@ -440,8 +463,12 @@ export function renderSignPage(token: string): string {
 
         const data = await resp.json();
         if (!resp.ok) {
-          const detail = (data && data.error) ? String(data.error) : 'Please try again or contact support.';
-          bilingualStatus(status, 'A aparut o problema la procesare.', detail);
+          if (data && data.errorRo && data.errorEn) {
+            bilingualStatus(status, String(data.errorRo), String(data.errorEn));
+          } else {
+            const detail = (data && data.error) ? String(data.error) : 'Please try again or contact support.';
+            bilingualStatus(status, 'A aparut o problema la procesare.', detail);
+          }
           return;
         }
 

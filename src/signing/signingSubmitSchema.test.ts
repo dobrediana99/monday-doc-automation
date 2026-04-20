@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { SignSubmitSchema } from "./signingController";
+import {
+  bilingualMessagesForSignSubmitZodError,
+  SignSubmitSchema,
+  SIGN_VALIDATION_CONSENT_EN,
+  SIGN_VALIDATION_CONSENT_RO,
+  SIGN_VALIDATION_FULL_NAME_EN,
+  SIGN_VALIDATION_FULL_NAME_RO
+} from "./signingController";
 
 describe("SignSubmitSchema", () => {
   it("accepts valid payload with trimmed full name", () => {
@@ -38,5 +45,33 @@ describe("SignSubmitSchema", () => {
       signerFullName: ""
     });
     expect(r.success).toBe(false);
+  });
+
+  it("maps Zod errors to bilingual consent message when consent is not true", () => {
+    const r = SignSubmitSchema.safeParse({
+      consent: false,
+      signaturePngBase64: "data:image/png;base64," + "b".repeat(60),
+      signerFullName: "Jane Doe"
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      const msg = bilingualMessagesForSignSubmitZodError(r.error);
+      expect(msg.ro).toBe(SIGN_VALIDATION_CONSENT_RO);
+      expect(msg.en).toBe(SIGN_VALIDATION_CONSENT_EN);
+    }
+  });
+
+  it("maps Zod errors to bilingual full name message when name is empty after trim", () => {
+    const r = SignSubmitSchema.safeParse({
+      consent: true,
+      signaturePngBase64: "data:image/png;base64," + "c".repeat(60),
+      signerFullName: "   "
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      const msg = bilingualMessagesForSignSubmitZodError(r.error);
+      expect(msg.ro).toBe(SIGN_VALIDATION_FULL_NAME_RO);
+      expect(msg.en).toBe(SIGN_VALIDATION_FULL_NAME_EN);
+    }
   });
 });

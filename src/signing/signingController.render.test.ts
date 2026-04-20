@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { renderSignPage } from "./signingController";
+import {
+  renderSignPage,
+  SIGN_VALIDATION_CONSENT_EN,
+  SIGN_VALIDATION_CONSENT_RO,
+  SIGN_VALIDATION_FULL_NAME_EN,
+  SIGN_VALIDATION_FULL_NAME_RO
+} from "./signingController";
 
 describe("renderSignPage", () => {
   const html = renderSignPage("test-token-abc");
@@ -31,8 +37,15 @@ describe("renderSignPage", () => {
     expect(html).toContain('id="signerFullName"');
     expect(html).toContain("Nume complet / Full name");
     expect(html).toContain("fullNameTrimmed");
-    expect(html).toContain("Te rugăm să completezi numele complet.");
-    expect(html).toContain("Please enter the full name.");
+    expect(html).toContain(SIGN_VALIDATION_FULL_NAME_RO);
+    expect(html).toContain(SIGN_VALIDATION_FULL_NAME_EN);
     expect(html).toContain("signerFullName: fullName");
+  });
+
+  it("includes bilingual consent validation in the submit handler (no alert)", () => {
+    expect(html).toContain(SIGN_VALIDATION_CONSENT_RO);
+    expect(html).toContain(SIGN_VALIDATION_CONSENT_EN);
+    expect(html).not.toContain("Trebuie sa bifati confirmarea");
+    expect(html).toContain("data.errorRo && data.errorEn");
   });
 });
