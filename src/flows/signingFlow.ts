@@ -159,7 +159,23 @@ export class SigningFlow {
       });
 
       // On email successfully sent
-      await this.mondayClient.updateStatus(boardId, item.id, SIGN_TRIGGER_COLUMN, SIGN_EMAIL_SENT_LABEL);
+      const triggerUpdated = await this.mondayClient.updateStatusIfLabelExists(
+        boardId,
+        item.id,
+        SIGN_TRIGGER_COLUMN,
+        SIGN_EMAIL_SENT_LABEL
+      );
+      if (!triggerUpdated) {
+        console.warn(
+          JSON.stringify({
+            event: "signing_trigger_label_missing",
+            boardId,
+            itemId: item.id,
+            columnId: SIGN_TRIGGER_COLUMN,
+            label: SIGN_EMAIL_SENT_LABEL
+          })
+        );
+      }
       await this.mondayClient.updateStatus(boardId, item.id, SIGN_FLOW_STATUS_COLUMN[flowType], "Sent");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Signing flow failed";

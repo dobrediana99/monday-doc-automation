@@ -49,6 +49,7 @@ describe("SigningFlow resend behavior for expired links", () => {
         return out;
       },
       updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateStatusIfLabelExists: vi.fn().mockResolvedValue(true),
       resolveLatestFileAssetFromFileColumn: vi.fn().mockResolvedValue({
         assetId: "asset1",
         name: "doc.pdf",
@@ -107,12 +108,12 @@ describe("SigningFlow resend behavior for expired links", () => {
 
     await expect(flow.startSigning("1", "Trimite Client")).rejects.toThrow(/smtp down/i);
 
-    const calls = (mondayClient.updateStatus as ReturnType<typeof vi.fn>).mock.calls;
-    const didSetEmailTrimis = calls.some(
-      ([boardId, itemId, colId, label]) =>
-        boardId === "b1" && itemId === "1" && colId === SIGN_TRIGGER_COLUMN && label === SIGN_EMAIL_SENT_LABEL
+    expect(mondayClient.updateStatusIfLabelExists).not.toHaveBeenCalledWith(
+      "b1",
+      "1",
+      SIGN_TRIGGER_COLUMN,
+      SIGN_EMAIL_SENT_LABEL
     );
-    expect(didSetEmailTrimis).toBe(false);
   });
 
   it("existing expired session + Sent => resend with new link", async () => {

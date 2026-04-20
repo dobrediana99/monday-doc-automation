@@ -68,6 +68,7 @@ describe("SigningFlow email language from client country", () => {
       getItemById: vi.fn(),
       getColumnTextById: (item: MondayItem) => robustColumnTextById(item),
       updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateStatusIfLabelExists: vi.fn().mockResolvedValue(true),
       resolveLatestFileAssetFromFileColumn: vi.fn().mockResolvedValue({
         assetId: "asset1",
         name: "doc.pdf",
@@ -97,7 +98,7 @@ describe("SigningFlow email language from client country", () => {
 
     await flow.startSigning("1", "Trimite Client");
 
-    expect(mondayClient.updateStatus).toHaveBeenCalledWith("b1", "1", SIGN_TRIGGER_COLUMN, SIGN_EMAIL_SENT_LABEL);
+    expect(mondayClient.updateStatusIfLabelExists).toHaveBeenCalledWith("b1", "1", SIGN_TRIGGER_COLUMN, SIGN_EMAIL_SENT_LABEL);
     expect(gmailService.sendEmail).toHaveBeenCalledTimes(1);
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       subject: string;
@@ -118,7 +119,7 @@ describe("SigningFlow email language from client country", () => {
 
     await flow.startSigning("1", "Trimite Client");
 
-    expect(mondayClient.updateStatus).toHaveBeenCalledWith("b1", "1", SIGN_TRIGGER_COLUMN, SIGN_EMAIL_SENT_LABEL);
+    expect(mondayClient.updateStatusIfLabelExists).toHaveBeenCalledWith("b1", "1", SIGN_TRIGGER_COLUMN, SIGN_EMAIL_SENT_LABEL);
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       subject: string;
       html: string;
