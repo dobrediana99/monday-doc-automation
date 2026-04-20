@@ -5,7 +5,7 @@ dotenv.config();
 
 // Ensure tests that import env multiple times don't leak previous process.env values.
 // (Vitest runs in a single process.)
-const EnvSchema = z.object({
+const BaseEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(8080),
   APP_BASE_URL: z.string().url(),
@@ -29,6 +29,16 @@ const EnvSchema = z.object({
   SIGNING_REDIS_URL: z.string().min(1).optional(),
 
   WEBHOOK_SECRET: z.string().optional()
+});
+
+const EnvSchema = BaseEnvSchema.superRefine((data, ctx) => {
+  if (data.NODE_ENV === "production" && !data.SIGNING_REDIS_URL) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["SIGNING_REDIS_URL"],
+      message: "Required in production for persistent signing links"
+    });
+  }
 });
 
 const parsed = EnvSchema.safeParse(process.env);

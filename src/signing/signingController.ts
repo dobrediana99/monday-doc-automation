@@ -4,6 +4,7 @@ import { SigningService } from "./signingService";
 import { AuditService } from "./auditService";
 import { PdfService } from "../documents/pdfService";
 import { SigningFlow } from "../flows/signingFlow";
+import { maskToken } from "./signingSessionStore";
 
 /** User-visible bilingual validation (signing page + submit API). */
 export const SIGN_VALIDATION_CONSENT_RO =
@@ -92,6 +93,7 @@ export function createSigningRouter(params: {
       // Even if Monday update fails, we still allow viewing the page (stateless UX).
     }
 
+    res.setHeader("Cache-Control", "no-store");
     return res.type("html").send(renderSignPage(token));
   });
 
@@ -198,7 +200,7 @@ export function createSigningRouter(params: {
         console.error(
           JSON.stringify({
             event: "signing_signed_contract_email_failed",
-            token,
+            token: maskToken(token),
             itemId: session.itemId,
             error: errMsg
           })

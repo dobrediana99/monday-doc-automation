@@ -29,6 +29,7 @@ import {
   type SigningFlowType,
   viewedLabelForFlow
 } from "../utils/mapping";
+import { maskToken } from "../signing/signingSessionStore";
 
 export class SigningFlow {
   private readonly signedContractEmailInFlight = new Set<string>();
@@ -177,7 +178,7 @@ export class SigningFlow {
       console.info(
         JSON.stringify({
           event: "signing_signed_contract_email_skipped_in_flight",
-          token: params.token
+          token: maskToken(params.token)
         })
       );
       return;
