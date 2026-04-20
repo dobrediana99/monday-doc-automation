@@ -27,6 +27,10 @@ const BaseEnvSchema = z.object({
 
   /** Optional: Redis URL for persistent signing sessions across restarts / multi-instance. */
   SIGNING_REDIS_URL: z.string().min(1).optional(),
+  /** Optional: Key prefix namespace for signing session data in Redis. */
+  SIGNING_REDIS_PREFIX: z.string().min(1).default("signing"),
+  /** Optional: Redis connect timeout (ms). Helps fail-fast on Cloud Run startup. */
+  SIGNING_REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
 
   WEBHOOK_SECRET: z.string().optional()
 });

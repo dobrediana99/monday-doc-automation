@@ -23,6 +23,7 @@ describe("SigningFlow without Monday link column", () => {
         return out;
       },
       updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateStatusIfLabelExists: vi.fn().mockResolvedValue(true),
       resolveLatestFileAssetFromFileColumn: vi.fn().mockResolvedValue({
         assetId: "asset1",
         name: "doc.pdf",

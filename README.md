@@ -4,7 +4,7 @@ Production-ready Node.js + TypeScript backend for Monday.com document generation
 
 - Stateless design for Google Cloud Run
 - No database required
-- In-memory idempotency and signing token/session storage
+- In-memory idempotency; signing sessions use Redis in production
 - No AI/LLM usage
 
 ## Implemented Endpoints
@@ -53,13 +53,11 @@ Notes:
 ## Workflow 2: Signing + Email (separate flow)
 
 Triggered by Monday webhook column change:
-- `color_mkshk7ap` (Trimite)
+- `color_mm28cpwk` (Status Semnare Cmd.)
 
 Supported values:
-- `Trimite Client SRL`
-- `Trimite Client GmbH`
-- `Trimite Furnizor SRL`
-- `Trimite Funizor GmbH`
+- `Trimite Client`
+- `Trimite Transportator`
 
 Process:
 1. Validate source PDF exists in Monday source file column
@@ -157,9 +155,27 @@ GMAIL_REDIRECT_URI=...
 GMAIL_REFRESH_TOKEN=...
 GMAIL_SENDER=sender@example.com
 
-SIGN_TOKEN_TTL_MINUTES=1440
+SIGN_TOKEN_TTL_MINUTES=2880
 IDEMPOTENCY_TTL_MINUTES=60
+
+# Required in production for persistent signing sessions
+SIGNING_REDIS_URL=redis://...
+# Optional prefix namespace
+SIGNING_REDIS_PREFIX=signing
+SIGNING_REDIS_CONNECT_TIMEOUT_MS=5000
 ```
+
+### Cloud Run + Redis notes
+
+- **Google Memorystore for Redis** is private IP only. To use it from Cloud Run you typically need:
+  - a **Serverless VPC Access Connector**
+  - Cloud Run egress configured to route to the VPC (and firewall rules as needed)
+- If you use an **external managed Redis provider** with a public endpoint, you can usually avoid VPC setup, but ensure:
+  - TLS (`rediss://...`) if required
+  - auth credentials are stored in **Secret Manager**
+  - outbound egress is allowed
+
+In production (`NODE_ENV=production`), the app fails fast on startup if `SIGNING_REDIS_URL` is missing.
 
 ### Required Monday item data assumptions
 

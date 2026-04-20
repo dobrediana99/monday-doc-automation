@@ -55,6 +55,7 @@ describe("SigningFlow Principal CC on signing emails", () => {
         return out;
       },
       updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateStatusIfLabelExists: vi.fn().mockResolvedValue(true),
       resolveLatestFileAssetFromFileColumn: vi.fn().mockResolvedValue({
         assetId: "a1",
         name: "doc.pdf",
@@ -94,6 +95,7 @@ describe("SigningFlow Principal CC on signing emails", () => {
         return out;
       },
       updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateStatusIfLabelExists: vi.fn().mockResolvedValue(true),
       resolveLatestFileAssetFromFileColumn: vi.fn().mockResolvedValue({
         assetId: "a1",
         name: "doc.pdf",
