@@ -80,7 +80,7 @@ export class SigningFlow {
         throw new Error("Nu am putut determina email-ul destinatarului pentru semnare (verifica coloanele email).");
       }
 
-      const existingSession = this.signingService.getActiveSession({
+      const existingSession = await this.signingService.getActiveSession({
         itemId: item.id,
         flowType,
         sourceAssetId: latest.assetId,
@@ -126,7 +126,7 @@ export class SigningFlow {
           : item.name.trim();
       const signingOrderReference = emailOrderId.length > 0 ? emailOrderId : fallbackOrderId;
 
-      const session = this.signingService.createSession({
+      const session = await this.signingService.createSession({
         itemId: item.id,
         boardId,
         flowType,
@@ -183,7 +183,7 @@ export class SigningFlow {
       return;
     }
 
-    const session = this.signingService.getSessionByToken(params.token);
+    const session = await this.signingService.getSessionByTokenAsync(params.token);
     if (!session || session.status !== "signed") {
       throw new Error("Invalid signing session for signed-contract email");
     }
@@ -235,7 +235,7 @@ export class SigningFlow {
         cc
       });
 
-      this.signingService.markSignedContractEmailSent(params.token);
+      await this.signingService.markSignedContractEmailSent(params.token);
       console.info(
         JSON.stringify({
           event: "signing_signed_contract_email_sent",
@@ -255,7 +255,7 @@ export class SigningFlow {
     signedPdfPath: string;
     sourcePdfPath?: string;
   }): Promise<void> {
-    const session = this.signingService.getSessionByToken(params.token);
+    const session = await this.signingService.getSessionByTokenAsync(params.token);
     if (!session) {
       throw new Error("Invalid or expired signing session");
     }
@@ -276,7 +276,7 @@ export class SigningFlow {
   }
 
   async downloadSourcePdfToTmp(token: string): Promise<string> {
-    const session = this.signingService.getSessionByToken(token);
+    const session = await this.signingService.getSessionByTokenAsync(token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
@@ -289,7 +289,7 @@ export class SigningFlow {
   }
 
   async getSourcePdfBytes(token: string): Promise<Buffer> {
-    const session = this.signingService.getSessionByToken(token);
+    const session = await this.signingService.getSessionByTokenAsync(token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
@@ -299,7 +299,7 @@ export class SigningFlow {
   async markViewedAndUpdateMonday(params: {
     token: string;
   }): Promise<void> {
-    const session = this.signingService.getSessionByToken(params.token);
+    const session = await this.signingService.getSessionByTokenAsync(params.token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
@@ -309,7 +309,7 @@ export class SigningFlow {
   }
 
   async markRefusedAndUpdateMonday(params: { token: string }): Promise<void> {
-    const session = this.signingService.getSessionByToken(params.token);
+    const session = await this.signingService.getSessionByTokenAsync(params.token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
@@ -324,7 +324,7 @@ export class SigningFlow {
   }
 
   async markSignedAndUpdateMonday(params: { token: string }): Promise<void> {
-    const session = this.signingService.getSessionByToken(params.token);
+    const session = await this.signingService.getSessionByTokenAsync(params.token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }

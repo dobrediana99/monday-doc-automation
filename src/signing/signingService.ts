@@ -1,8 +1,15 @@
-import crypto from "node:crypto";
 import dayjs from "dayjs";
 import type { SigningEmailLanguage } from "../email/signingEmailLocale";
 import type { ClientEmailSource, SigningFlowType } from "../utils/mapping";
 import type { SigningAuditTrail } from "./auditService";
+import {
+  type SigningSessionKeyParams,
+  InMemorySigningSessionStore,
+  type SigningSessionStore,
+  generateSigningToken,
+  makeSigningSessionKey,
+  maskToken
+} from "./signingSessionStore";
 
 export interface SigningSession {
   token: string;
@@ -41,12 +48,12 @@ export interface SigningSession {
 }
 
 export class SigningService {
-  private readonly sessions = new Map<string, SigningSession>();
-  private readonly activeSessionIndex = new Map<string, string>();
+  constructor(
+    private readonly ttlMs: number,
+    private readonly store: SigningSessionStore = new InMemorySigningSessionStore()
+  ) {}
 
-  constructor(private readonly ttlMs: number) {}
-
-  createSession(input: {
+  async createSession(input: {
     itemId: string;
     boardId: string;
     flowType: SigningFlowType;
@@ -58,11 +65,9 @@ export class SigningService {
     recipientName?: string | null;
     signingEmailLanguage: SigningEmailLanguage;
     signingOrderReference: string;
-  }): SigningSession {
-    this.cleanupExpired();
-
+  }): Promise<SigningSession> {
     const sessionId = crypto.randomUUID();
-    const token = `${sessionId}-${crypto.randomBytes(24).toString("hex")}`;
+    const token = generateSigningToken(sessionId);
     const now = Date.now();
 
     const session: SigningSession = {
@@ -84,49 +89,90 @@ export class SigningService {
       status: "active"
     };
 
-    this.sessions.set(token, session);
-    this.activeSessionIndex.set(this.makeSessionKey(session), token);
+    try {
+      await this.store.createSession(session);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(
+        JSON.stringify({
+          event: "signing_session_store_create_failed",
+          token: maskToken(token),
+          itemId: input.itemId,
+          message: msg.slice(0, 200)
+        })
+      );
+    }
+
+    try {
+      await this.store.setActiveTokenForKey(makeSigningSessionKey(session), token, this.ttlMs);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(
+        JSON.stringify({
+          event: "signing_session_active_index_set_failed",
+          token: maskToken(token),
+          itemId: input.itemId,
+          message: msg.slice(0, 200)
+        })
+      );
+    }
+    console.info(
+      JSON.stringify({
+        event: "signing_session_created",
+        token: maskToken(token),
+        itemId: input.itemId,
+        boardId: input.boardId,
+        flowType: input.flowType,
+        expiresAt: dayjs(session.expiresAt).toISOString()
+      })
+    );
     return session;
   }
 
   getSessionByToken(token: string): SigningSession | null {
-    this.cleanupExpired();
-    const session = this.sessions.get(token);
-    if (!session || session.expiresAt <= Date.now()) {
-      this.sessions.delete(token);
+    throw new Error("Use getSessionByTokenAsync in production paths");
+  }
+
+  async getSessionByTokenAsync(token: string): Promise<SigningSession | null> {
+    const session = await this.store.getSessionByToken(token);
+    if (!session) {
+      console.info(JSON.stringify({ event: "signing_session_not_found", token: maskToken(token) }));
       return null;
     }
-
+    if (session.expiresAt <= Date.now()) {
+      console.info(JSON.stringify({ event: "signing_session_expired", token: maskToken(token), itemId: session.itemId }));
+      return null;
+    }
+    console.info(
+      JSON.stringify({
+        event: "signing_session_loaded",
+        token: maskToken(token),
+        itemId: session.itemId,
+        status: session.status
+      })
+    );
     return session;
   }
 
-  isTokenValid(token: string): boolean {
-    const session = this.getSessionByToken(token);
+  async isTokenValid(token: string): Promise<boolean> {
+    const session = await this.getSessionByTokenAsync(token);
     return Boolean(session && session.status === "active");
   }
 
-  getActiveSession(params: {
-    itemId: string;
-    flowType: SigningFlowType;
-    sourceAssetId: string;
-    recipientEmail: string;
-  }): SigningSession | null {
-    this.cleanupExpired();
-    const key = this.makeSessionKey(params);
-    const token = this.activeSessionIndex.get(key);
-    if (!token) {
-      return null;
-    }
-    const session = this.getSessionByToken(token);
+  async getActiveSession(params: SigningSessionKeyParams): Promise<SigningSession | null> {
+    const key = makeSigningSessionKey(params);
+    const token = await this.store.getActiveTokenForKey(key);
+    if (!token) return null;
+    const session = await this.getSessionByTokenAsync(token);
     if (!session || session.status !== "active") {
-      this.activeSessionIndex.delete(key);
+      await this.store.deleteActiveTokenForKey(key).catch(() => undefined);
       return null;
     }
     return session;
   }
 
-  getAuditTrail(token: string): SigningAuditTrail {
-    const session = this.getSessionByToken(token);
+  async getAuditTrail(token: string): Promise<SigningAuditTrail> {
+    const session = await this.getSessionByTokenAsync(token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
@@ -157,29 +203,31 @@ export class SigningService {
     };
   }
 
-  markViewed(token: string, meta: { ip: string; userAgent: string }): void {
-    const session = this.getSessionByToken(token);
+  async markViewed(token: string, meta: { ip: string; userAgent: string }): Promise<void> {
+    const session = await this.getSessionByTokenAsync(token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
+    const patch: Partial<SigningSession> = {
+      ipAtView: meta.ip,
+      userAgentAtView: meta.userAgent
+    };
     if (!session.viewedAt) {
-      session.viewedAt = dayjs().toISOString();
+      patch.viewedAt = dayjs().toISOString();
     }
-    session.ipAtView = meta.ip;
-    session.userAgentAtView = meta.userAgent;
+    await this.store.updateSession(token, patch);
   }
 
-  markConsented(token: string): void {
-    const session = this.getSessionByToken(token);
+  async markConsented(token: string): Promise<void> {
+    const session = await this.getSessionByTokenAsync(token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
-    if (!session.consentedAt) {
-      session.consentedAt = dayjs().toISOString();
-    }
+    if (session.consentedAt) return;
+    await this.store.updateSession(token, { consentedAt: dayjs().toISOString() });
   }
 
-  markSigned(
+  async markSigned(
     token: string,
     meta: {
       ip: string;
@@ -188,69 +236,51 @@ export class SigningService {
       signedAt?: string;
       signerFullName: string;
     }
-  ): void {
-    const session = this.getSessionByToken(token);
+  ): Promise<void> {
+    const session = await this.getSessionByTokenAsync(token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
-    session.status = "signed";
-    session.signedAt = meta.signedAt ?? dayjs().toISOString();
-    session.ipAtSign = meta.ip;
-    session.userAgentAtSign = meta.userAgent;
-    session.finalSignedFileName = meta.finalSignedFileName;
-    session.signerFullName = meta.signerFullName;
+    await this.store.updateSession(token, {
+      status: "signed",
+      signedAt: meta.signedAt ?? dayjs().toISOString(),
+      ipAtSign: meta.ip,
+      userAgentAtSign: meta.userAgent,
+      finalSignedFileName: meta.finalSignedFileName,
+      signerFullName: meta.signerFullName
+    });
+    await this.store.deleteActiveTokenForKey(makeSigningSessionKey(session)).catch(() => undefined);
+    console.info(JSON.stringify({ event: "signing_session_signed", token: maskToken(token), itemId: session.itemId }));
   }
 
-  markRefused(token: string, params: { reason?: string; ip: string; userAgent: string }): void {
-    const session = this.getSessionByToken(token);
+  async markRefused(token: string, params: { reason?: string; ip: string; userAgent: string }): Promise<void> {
+    const session = await this.getSessionByTokenAsync(token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
-    session.status = "refused";
-    session.refusalReason = params.reason ?? "refused";
-    session.ipAtSign = params.ip;
-    session.userAgentAtSign = params.userAgent;
+    await this.store.updateSession(token, {
+      status: "refused",
+      refusalReason: params.reason ?? "refused",
+      ipAtSign: params.ip,
+      userAgentAtSign: params.userAgent
+    });
+    await this.store.deleteActiveTokenForKey(makeSigningSessionKey(session)).catch(() => undefined);
+    console.info(JSON.stringify({ event: "signing_session_refused", token: maskToken(token), itemId: session.itemId }));
   }
 
-  setSourcePdfHash(token: string, sha256: string): void {
-    const session = this.getSessionByToken(token);
+  async setSourcePdfHash(token: string, sha256: string): Promise<void> {
+    const session = await this.getSessionByTokenAsync(token);
     if (!session) {
       throw new Error("Invalid or expired signing token");
     }
-    session.sourcePdfHashSha256 = sha256;
+    await this.store.updateSession(token, { sourcePdfHashSha256: sha256 });
   }
 
-  markError(token: string, message: string): void {
-    const session = this.getSessionByToken(token);
-    if (!session) {
-      return;
-    }
-    session.lastError = message;
+  async markError(token: string, message: string): Promise<void> {
+    await this.store.updateSession(token, { lastError: message });
   }
 
-  markSignedContractEmailSent(token: string): void {
-    const session = this.getSessionByToken(token);
-    if (!session) {
-      return;
-    }
-    session.signedContractEmailSentAt = dayjs().toISOString();
-  }
-
-  private cleanupExpired(): void {
-    const now = Date.now();
-    for (const [token, session] of this.sessions.entries()) {
-      if (session.expiresAt <= now) {
-        this.sessions.delete(token);
-      }
-    }
-  }
-
-  private makeSessionKey(params: {
-    itemId: string;
-    flowType: SigningFlowType;
-    sourceAssetId: string;
-    recipientEmail: string;
-  }): string {
-    return `${params.itemId}:${params.flowType}:${params.sourceAssetId}:${params.recipientEmail.toLowerCase()}`;
+  async markSignedContractEmailSent(token: string): Promise<void> {
+    await this.store.updateSession(token, { signedContractEmailSentAt: dayjs().toISOString() });
   }
 }

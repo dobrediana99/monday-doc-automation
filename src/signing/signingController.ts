@@ -77,13 +77,13 @@ export function createSigningRouter(params: {
       return res.status(400).send("Missing token");
     }
 
-    const session = params.signingService.getSessionByToken(token);
+    const session = await params.signingService.getSessionByTokenAsync(token);
     if (!session || session.status !== "active") {
       return res.status(404).send("Link invalid or expired");
     }
 
     try {
-      params.signingService.markViewed(token, {
+      await params.signingService.markViewed(token, {
         ip: getClientIp(req),
         userAgent: req.get("user-agent") || "unknown"
       });
@@ -101,7 +101,7 @@ export function createSigningRouter(params: {
       return res.status(400).send("Missing token");
     }
 
-    const session = params.signingService.getSessionByToken(token);
+    const session = await params.signingService.getSessionByTokenAsync(token);
     if (!session || session.status !== "active") {
       return res.status(404).send("Link invalid or expired");
     }
@@ -141,7 +141,7 @@ export function createSigningRouter(params: {
       return res.status(400).json({ error: "Missing token" });
     }
 
-    const session = params.signingService.getSessionByToken(token);
+    const session = await params.signingService.getSessionByTokenAsync(token);
     if (!session || session.status !== "active") {
       return res.status(404).json({ error: "Link invalid or expired" });
     }
@@ -153,19 +153,19 @@ export function createSigningRouter(params: {
     }
 
     try {
-      params.signingService.markConsented(token);
+      await params.signingService.markConsented(token);
 
       // Ensure we have a source hash bound into the audit trail before generating the signed PDF.
       if (!session.sourcePdfHashSha256) {
         const sourceBytes = await params.signingFlow.getSourcePdfBytes(token);
-        params.signingService.setSourcePdfHash(token, params.pdfService.sha256Hex(sourceBytes));
+        await params.signingService.setSourcePdfHash(token, params.pdfService.sha256Hex(sourceBytes));
       }
 
       const ip = getClientIp(req);
       const userAgent = req.get("user-agent") || "unknown";
       const signedAt = new Date().toISOString();
       const trailForPdf = {
-        ...params.signingService.getAuditTrail(token),
+        ...(await params.signingService.getAuditTrail(token)),
         signedAt,
         ipAtSign: ip,
         userAgentAtSign: userAgent,
@@ -180,7 +180,7 @@ export function createSigningRouter(params: {
       );
 
       const finalFileName = `${session.sourcePdfName.replace(/\.pdf$/i, "")}_signed.pdf`;
-      params.signingService.markSigned(token, {
+      await params.signingService.markSigned(token, {
         ip,
         userAgent,
         finalSignedFileName: finalFileName,
@@ -214,7 +214,7 @@ export function createSigningRouter(params: {
       return res.json({ ok: true, status: "signed" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to sign document";
-      params.signingService.markError(token, message);
+      await params.signingService.markError(token, message);
       return res.status(500).json({ error: message });
     }
   });
@@ -225,7 +225,7 @@ export function createSigningRouter(params: {
       return res.status(400).json({ error: "Missing token" });
     }
 
-    const session = params.signingService.getSessionByToken(token);
+    const session = await params.signingService.getSessionByTokenAsync(token);
     if (!session || session.status !== "active") {
       return res.status(404).json({ error: "Link invalid or expired" });
     }
@@ -236,7 +236,7 @@ export function createSigningRouter(params: {
     }
 
     try {
-      params.signingService.markRefused(token, {
+      await params.signingService.markRefused(token, {
         reason: parsed.data.reason,
         ip: getClientIp(req),
         userAgent: req.get("user-agent") || "unknown"
@@ -245,7 +245,7 @@ export function createSigningRouter(params: {
       return res.json({ ok: true, status: "refused" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to refuse";
-      params.signingService.markError(token, message);
+      await params.signingService.markError(token, message);
       return res.status(500).json({ error: message });
     }
   });

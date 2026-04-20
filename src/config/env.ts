@@ -3,6 +3,8 @@ import { z } from "zod";
 
 dotenv.config();
 
+// Ensure tests that import env multiple times don't leak previous process.env values.
+// (Vitest runs in a single process.)
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(8080),
@@ -20,8 +22,11 @@ const EnvSchema = z.object({
   GMAIL_REFRESH_TOKEN: z.string().min(1),
   GMAIL_SENDER: z.string().email(),
 
-  SIGN_TOKEN_TTL_MINUTES: z.coerce.number().default(60 * 24),
+  SIGN_TOKEN_TTL_MINUTES: z.coerce.number().default(60 * 48),
   IDEMPOTENCY_TTL_MINUTES: z.coerce.number().default(60),
+
+  /** Optional: Redis URL for persistent signing sessions across restarts / multi-instance. */
+  SIGNING_REDIS_URL: z.string().min(1).optional(),
 
   WEBHOOK_SECRET: z.string().optional()
 });

@@ -8,6 +8,8 @@ import { TemplateService } from "./documents/templateService";
 import { PdfService } from "./documents/pdfService";
 import { DocumentGenerationFlow } from "./flows/documentGeneration";
 import { SigningService } from "./signing/signingService";
+import { InMemorySigningSessionStore } from "./signing/signingSessionStore";
+import { RedisSigningSessionStore } from "./signing/redisSigningSessionStore";
 import { GmailService } from "./email/gmailService";
 import { SigningFlow } from "./flows/signingFlow";
 import { createMondayWebhookRouter } from "./webhooks/mondayWebhook";
@@ -34,7 +36,16 @@ const documentFlow = new DocumentGenerationFlow(
   pdfService
 );
 
-const signingService = new SigningService(env.SIGN_TOKEN_TTL_MINUTES * 60_000);
+const signingStore = env.SIGNING_REDIS_URL
+  ? new RedisSigningSessionStore(env.SIGNING_REDIS_URL)
+  : new InMemorySigningSessionStore();
+if (!env.SIGNING_REDIS_URL) {
+  logger.warn(
+    { note: "SIGNING_REDIS_URL not set" },
+    "Signing sessions are in-memory only (links will break on restart / multi-instance)."
+  );
+}
+const signingService = new SigningService(env.SIGN_TOKEN_TTL_MINUTES * 60_000, signingStore);
 const auditService = new AuditService();
 const gmailService = new GmailService({
   clientId: env.GMAIL_CLIENT_ID,

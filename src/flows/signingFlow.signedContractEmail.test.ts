@@ -56,7 +56,7 @@ describe("SigningFlow signed-contract recipient email", () => {
 
   it("sends signed PDF to session recipient after signing (client flow email)", async () => {
     const { gmailService, signingService, flow } = makeDeps();
-    const session = signingService.createSession({
+    const session = await signingService.createSession({
       itemId: "1",
       boardId: "b1",
       flowType: "client",
@@ -69,7 +69,7 @@ describe("SigningFlow signed-contract recipient email", () => {
       signingEmailLanguage: "en",
       signingOrderReference: "CLS8766"
     });
-    signingService.markSigned(session.token, {
+    await signingService.markSigned(session.token, {
       ip: "1.1.1.1",
       userAgent: "ua",
       finalSignedFileName: "Contract RO_signed.pdf",
@@ -97,12 +97,12 @@ describe("SigningFlow signed-contract recipient email", () => {
     expect(arg.html).toContain("Please find attached the signed document");
     expect(arg.html).not.toMatch(/Vă transmitem|Bună ziua,/);
     expect(Buffer.compare(arg.pdfBytes, pdfBytes)).toBe(0);
-    expect(signingService.getSessionByToken(session.token)?.signedContractEmailSentAt).toBeTruthy();
+    expect((await signingService.getSessionByTokenAsync(session.token))?.signedContractEmailSentAt).toBeTruthy();
   });
 
   it("sends signed PDF to supplier email for transportator session", async () => {
     const { gmailService, signingService, flow } = makeDeps();
-    const session = signingService.createSession({
+    const session = await signingService.createSession({
       itemId: "2",
       boardId: "b1",
       flowType: "transportator",
@@ -115,7 +115,7 @@ describe("SigningFlow signed-contract recipient email", () => {
       signingEmailLanguage: "ro",
       signingOrderReference: "T-99"
     });
-    signingService.markSigned(session.token, {
+    await signingService.markSigned(session.token, {
       ip: "1.1.1.1",
       userAgent: "ua",
       finalSignedFileName: "doc_signed.pdf",
@@ -140,7 +140,7 @@ describe("SigningFlow signed-contract recipient email", () => {
 
   it("does not send duplicate emails when completion path runs twice", async () => {
     const { gmailService, signingService, flow } = makeDeps();
-    const session = signingService.createSession({
+    const session = await signingService.createSession({
       itemId: "3",
       boardId: "b1",
       flowType: "client",
@@ -153,7 +153,7 @@ describe("SigningFlow signed-contract recipient email", () => {
       signingEmailLanguage: "en",
       signingOrderReference: "ORD-3"
     });
-    signingService.markSigned(session.token, {
+    await signingService.markSigned(session.token, {
       ip: "1.1.1.1",
       userAgent: "ua",
       finalSignedFileName: "doc_signed.pdf",

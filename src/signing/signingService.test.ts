@@ -11,9 +11,9 @@ describe("SigningService token validity", () => {
     vi.useRealTimers();
   });
 
-  it("isTokenValid is true while active and within TTL", () => {
+  it("isTokenValid is true while active and within TTL", async () => {
     const svc = new SigningService(60_000);
-    const session = svc.createSession({
+    const session = await svc.createSession({
       itemId: "1",
       boardId: "b1",
       flowType: "client",
@@ -26,12 +26,12 @@ describe("SigningService token validity", () => {
       signingEmailLanguage: "en",
       signingOrderReference: "ORD-1"
     });
-    expect(svc.isTokenValid(session.token)).toBe(true);
+    await expect(svc.isTokenValid(session.token)).resolves.toBe(true);
   });
 
-  it("isTokenValid is false after expiry", () => {
+  it("isTokenValid is false after expiry", async () => {
     const svc = new SigningService(1_000);
-    const session = svc.createSession({
+    const session = await svc.createSession({
       itemId: "1",
       boardId: "b1",
       flowType: "client",
@@ -45,12 +45,12 @@ describe("SigningService token validity", () => {
       signingOrderReference: "ORD-1"
     });
     vi.advanceTimersByTime(1_001);
-    expect(svc.isTokenValid(session.token)).toBe(false);
+    await expect(svc.isTokenValid(session.token)).resolves.toBe(false);
   });
 
-  it("markSigned stores provided signedAt instead of clock time", () => {
+  it("markSigned stores provided signedAt instead of clock time", async () => {
     const svc = new SigningService(60_000);
-    const session = svc.createSession({
+    const session = await svc.createSession({
       itemId: "1",
       boardId: "b1",
       flowType: "client",
@@ -65,16 +65,17 @@ describe("SigningService token validity", () => {
     });
     const fixed = "2026-05-01T10:00:00.000Z";
     vi.advanceTimersByTime(5_000);
-    svc.markSigned(session.token, {
+    await svc.markSigned(session.token, {
       ip: "1.2.3.4",
       userAgent: "ua",
       finalSignedFileName: "out.pdf",
       signedAt: fixed,
       signerFullName: "Maria Ionescu"
     });
-    expect(svc.getAuditTrail(session.token).signedAt).toBe(fixed);
-    expect(svc.getAuditTrail(session.token).ipAtSign).toBe("1.2.3.4");
-    expect(svc.getAuditTrail(session.token).signerFullName).toBe("Maria Ionescu");
+    const trail = await svc.getAuditTrail(session.token);
+    expect(trail.signedAt).toBe(fixed);
+    expect(trail.ipAtSign).toBe("1.2.3.4");
+    expect(trail.signerFullName).toBe("Maria Ionescu");
   });
 });
 

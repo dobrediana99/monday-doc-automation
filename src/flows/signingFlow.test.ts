@@ -70,7 +70,7 @@ describe("SigningFlow resend behavior for expired links", () => {
 
   it("existing valid link + Sent => no resend", async () => {
     const { mondayClient, gmailService, signingService, flow } = makeDeps();
-    const session = signingService.createSession({
+    const session = await signingService.createSession({
       itemId: "1",
       boardId: "b1",
       flowType: "client",
@@ -103,7 +103,7 @@ describe("SigningFlow resend behavior for expired links", () => {
     const shortTtlService = new SigningService(1_000);
     (flow as unknown as { signingService: SigningService }).signingService = shortTtlService;
 
-    const session = shortTtlService.createSession({
+    const session = await shortTtlService.createSession({
       itemId: "1",
       boardId: "b1",
       flowType: "client",
@@ -137,7 +137,7 @@ describe("SigningFlow resend behavior for expired links", () => {
     const shortTtlService = new SigningService(1_000);
     (flow as unknown as { signingService: SigningService }).signingService = shortTtlService;
 
-    const session = shortTtlService.createSession({
+    const session = await shortTtlService.createSession({
       itemId: "1",
       boardId: "b1",
       flowType: "client",
@@ -167,7 +167,7 @@ describe("SigningFlow resend behavior for expired links", () => {
 
   it("existing valid session + Viewed by ... => no resend", async () => {
     const { mondayClient, gmailService, signingService, flow } = makeDeps();
-    const session = signingService.createSession({
+    const session = await signingService.createSession({
       itemId: "1",
       boardId: "b1",
       flowType: "client",

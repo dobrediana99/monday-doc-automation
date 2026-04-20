@@ -135,7 +135,7 @@ describe("SigningFlow Principal CC on signing emails", () => {
     const signingService = new SigningService(60_000);
     const flow = new SigningFlow(mondayClient, signingService, gmailService, "https://svc");
 
-    const session = signingService.createSession({
+    const session = await signingService.createSession({
       itemId: "9",
       boardId: "b1",
       flowType: "client",
@@ -147,7 +147,7 @@ describe("SigningFlow Principal CC on signing emails", () => {
       signingEmailLanguage: "en",
       signingOrderReference: "ORD"
     });
-    signingService.markSigned(session.token, {
+    await signingService.markSigned(session.token, {
       ip: "1.1.1.1",
       userAgent: "ua",
       finalSignedFileName: "x_signed.pdf",
@@ -183,7 +183,7 @@ describe("SigningFlow Principal CC on signing emails", () => {
     const signingService = new SigningService(60_000);
     const flow = new SigningFlow(mondayClient, signingService, gmailService, "https://svc");
 
-    const session = signingService.createSession({
+    const session = await signingService.createSession({
       itemId: "9",
       boardId: "b1",
       flowType: "client",
@@ -195,7 +195,7 @@ describe("SigningFlow Principal CC on signing emails", () => {
       signingEmailLanguage: "en",
       signingOrderReference: "ORD"
     });
-    signingService.markSigned(session.token, {
+    await signingService.markSigned(session.token, {
       ip: "1.1.1.1",
       userAgent: "ua",
       finalSignedFileName: "x_signed.pdf",
@@ -230,7 +230,7 @@ describe("SigningFlow Principal CC on signing emails", () => {
     const signingService = new SigningService(60_000);
     const flow = new SigningFlow(mondayClient, signingService, gmailService, "https://svc");
 
-    const session = signingService.createSession({
+    const session = await signingService.createSession({
       itemId: "9",
       boardId: "b1",
       flowType: "client",
@@ -242,7 +242,7 @@ describe("SigningFlow Principal CC on signing emails", () => {
       signingEmailLanguage: "en",
       signingOrderReference: "ORD"
     });
-    signingService.markSigned(session.token, {
+    await signingService.markSigned(session.token, {
       ip: "1.1.1.1",
       userAgent: "ua",
       finalSignedFileName: "x_signed.pdf",
