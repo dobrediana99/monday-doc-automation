@@ -1,7 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { MondayClient, MondayItem } from "../monday/mondayClient";
 import type { GmailService } from "../email/gmailService";
-import { CLIENT_COUNTRY_COLUMN_ID, EMAIL_SUBJECT_ORDER_ID_COLUMN_ID } from "../utils/mapping";
+import {
+  CLIENT_COUNTRY_COLUMN_ID,
+  EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
+  SIGN_EMAIL_SENT_LABEL,
+  SIGN_TRIGGER_COLUMN
+} from "../utils/mapping";
 import { extractColumnDisplayText } from "../utils/mondayValues";
 import { SigningService } from "../signing/signingService";
 import { SigningFlow } from "./signingFlow";
@@ -92,6 +97,7 @@ describe("SigningFlow email language from client country", () => {
 
     await flow.startSigning("1", "Trimite Client");
 
+    expect(mondayClient.updateStatus).toHaveBeenCalledWith("b1", "1", SIGN_TRIGGER_COLUMN, SIGN_EMAIL_SENT_LABEL);
     expect(gmailService.sendEmail).toHaveBeenCalledTimes(1);
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       subject: string;
@@ -112,6 +118,7 @@ describe("SigningFlow email language from client country", () => {
 
     await flow.startSigning("1", "Trimite Client");
 
+    expect(mondayClient.updateStatus).toHaveBeenCalledWith("b1", "1", SIGN_TRIGGER_COLUMN, SIGN_EMAIL_SENT_LABEL);
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       subject: string;
       html: string;

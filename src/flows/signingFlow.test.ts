@@ -3,6 +3,7 @@ import type { MondayClient, MondayItem } from "../monday/mondayClient";
 import type { GmailService } from "../email/gmailService";
 import { SigningService } from "../signing/signingService";
 import { SigningFlow } from "./signingFlow";
+import { SIGN_EMAIL_SENT_LABEL, SIGN_TRIGGER_COLUMN } from "../utils/mapping";
 
 function itemFixture(params: {
   itemId: string;
@@ -95,6 +96,23 @@ describe("SigningFlow resend behavior for expired links", () => {
 
     expect(mondayClient.updateStatus).not.toHaveBeenCalled(); // should not set Procesare
     expect(gmailService.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("does not set trigger to Email trimis when gmail send fails", async () => {
+    const { mondayClient, gmailService, flow } = makeDeps();
+    mondayClient.getItemById = vi.fn().mockResolvedValue(
+      itemFixture({ itemId: "1", boardId: "b1", flowType: "client", flowStatus: "" })
+    );
+    (gmailService.sendEmail as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("smtp down"));
+
+    await expect(flow.startSigning("1", "Trimite Client")).rejects.toThrow(/smtp down/i);
+
+    const calls = (mondayClient.updateStatus as ReturnType<typeof vi.fn>).mock.calls;
+    const didSetEmailTrimis = calls.some(
+      ([boardId, itemId, colId, label]) =>
+        boardId === "b1" && itemId === "1" && colId === SIGN_TRIGGER_COLUMN && label === SIGN_EMAIL_SENT_LABEL
+    );
+    expect(didSetEmailTrimis).toBe(false);
   });
 
   it("existing expired session + Sent => resend with new link", async () => {

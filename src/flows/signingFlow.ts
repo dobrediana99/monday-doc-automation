@@ -16,6 +16,7 @@ import {
   parseSigningFlowType,
   declinedLabelForFlow,
       resolveRecipientEmail,
+  SIGN_EMAIL_SENT_LABEL,
   SIGN_ERROR_LABEL,
   SIGN_ERROR_TEXT_COLUMN,
   SIGN_FLOW_STATUS_COLUMN,
@@ -158,6 +159,7 @@ export class SigningFlow {
       });
 
       // On email successfully sent
+      await this.mondayClient.updateStatus(boardId, item.id, SIGN_TRIGGER_COLUMN, SIGN_EMAIL_SENT_LABEL);
       await this.mondayClient.updateStatus(boardId, item.id, SIGN_FLOW_STATUS_COLUMN[flowType], "Sent");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Signing flow failed";

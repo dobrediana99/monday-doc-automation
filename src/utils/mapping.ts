@@ -42,6 +42,7 @@ export const SIGN_TRIGGER_ALLOWED_VALUES = new Set([
 ]);
 
 export const SIGN_PROCESSING_LABEL = "Procesare";
+export const SIGN_EMAIL_SENT_LABEL = "Email trimis";
 export const SIGN_VIEWED_LABEL = "Vizualizat";
 export const SIGN_SIGNED_LABEL = "Semnat";
 export const SIGN_REFUSED_LABEL = "Refuzat";
