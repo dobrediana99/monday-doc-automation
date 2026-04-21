@@ -54,7 +54,6 @@ export function buildSignatureRequestEmail(params: {
       }),
       html: emailWrapper(`
             <p>Buna ziua,</p>
-            <br />
             ${
               params.flowType === "client"
                 ? `
@@ -72,7 +71,6 @@ export function buildSignatureRequestEmail(params: {
               params.flowType === "client"
                 ? `
             <p>multumim ca ati ales sa lucrati cu Crystal Logistics,</p>
-            <br />
             <p>O zi frumoasa!</p>
             <br />
             <p>In cazul in care marfa transportata se incadreaza intr-una din categoriile bunurilor cu risc fiscal ridicat (BRFR), beneficiarul (importatorul) are obligatia de a ne furniza in timp util codurile UIT necesare pentru toate segmentele transporturilor nationale aferente, pentru a putea fi trecute pe CMR-uri +avize de livrare (POD). Nerespectarea acestei reglementari in timp util poate produce intarzieri, penalitati si amenzi care vor fi suportate integral de catre client. Prezenta comanda a fost expediata in urma acceptarii ofertei iar noi deja am demarat organizarea serviciului de transport. In cazul in care nu se trimite refuzul scris in maximum o ora de la trimiterea acestei comenzi, comanda se considera acceptata integral.</p>
