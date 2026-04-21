@@ -109,7 +109,7 @@ describe("SigningFlow email language from client country", () => {
       html: string;
       pdfAttachment?: { bytes: Buffer; fileName: string };
     };
-    expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics");
+    expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics - CLS8766");
     expect(arg.html).toContain("48 de ore");
     expect(arg.html).toContain("https://svc.example/sign/");
     expect(arg.html).not.toContain("Signing link:");
@@ -132,7 +132,7 @@ describe("SigningFlow email language from client country", () => {
       html: string;
       pdfAttachment?: { bytes: Buffer; fileName: string };
     };
-    expect(arg.subject).toBe("Shipping Order Crystal Logistics");
+    expect(arg.subject).toBe("Shipping Order Crystal Logistics - CLS8766");
     expect(arg.html).toContain("48 hours");
     expect(arg.html).not.toContain("48 de ore");
     expect(arg.html).not.toContain("Link semnare:");
@@ -148,8 +148,8 @@ describe("SigningFlow email language from client country", () => {
     await flow.startSigning("1", "Trimite Client");
 
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string; html: string };
-    expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics");
-    expect(arg.html).toContain("ONLY-NAME");
+    expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics - ONLY-NAME");
+    expect(arg.html).toContain("am atasat comanda de expeditie,");
   });
 
   it("uses pulse_id_mks1dcwz from value JSON when text is empty (no item.name fallback)", async () => {
@@ -161,8 +161,7 @@ describe("SigningFlow email language from client country", () => {
     await flow.startSigning("1", "Trimite Client");
 
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string; html: string };
-    expect(arg.subject).toBe("Shipping Order Crystal Logistics");
-    expect(arg.html).toContain("CLS-01609");
+    expect(arg.subject).toBe("Shipping Order Crystal Logistics - CLS-01609");
     expect(arg.html).not.toContain("TEST_diana");
   });
 });
