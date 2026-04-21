@@ -4,6 +4,8 @@ import type { GmailService } from "../email/gmailService";
 import { SigningService } from "../signing/signingService";
 import { SigningFlow } from "./signingFlow";
 
+const minimalPdfBytes = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n");
+
 describe("SigningFlow without Monday link column", () => {
   it("does not attempt to call mondayClient.updateLink", async () => {
     const mondayClient = {
@@ -31,6 +33,7 @@ describe("SigningFlow without Monday link column", () => {
         public_url: "p",
         file_extension: "pdf"
       }),
+      downloadAssetBytes: vi.fn().mockResolvedValue(minimalPdfBytes),
       updateText: vi.fn().mockResolvedValue(undefined),
       resolvePrincipalCcEmail: vi.fn().mockResolvedValue(null)
     } as unknown as MondayClient;

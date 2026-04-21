@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   isRomaniaClientCountry,
   normalizeCountryForEmailLanguage,
-  signingEmailLanguageFromClientCountry
+  signingEmailLanguageFromClientCountry,
+  getEmailLanguage
 } from "./signingEmailLocale";
 
 describe("normalizeCountryForEmailLanguage", () => {
@@ -46,5 +47,12 @@ describe("signingEmailLanguageFromClientCountry", () => {
 
   it("non-Romania -> en", () => {
     expect(signingEmailLanguageFromClientCountry("Austria")).toBe("en");
+  });
+});
+
+describe("getEmailLanguage", () => {
+  it("defaults to English when country is missing", () => {
+    expect(getEmailLanguage()).toBe("en");
+    expect(getEmailLanguage("")).toBe("en");
   });
 });

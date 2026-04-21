@@ -38,8 +38,23 @@ export class GmailService {
     this.sender = config.sender;
   }
 
-  async sendEmail(params: { to: string; subject: string; html: string; cc?: string[] }): Promise<void> {
-    const raw = this.buildRawEmail(params.to, params.subject, params.html, params.cc);
+  async sendEmail(params: {
+    to: string;
+    subject: string;
+    html: string;
+    cc?: string[];
+    pdfAttachment?: { bytes: Buffer; fileName: string };
+  }): Promise<void> {
+    const raw = params.pdfAttachment
+      ? this.buildRawMultipartHtmlWithOptionalPdf({
+          to: params.to,
+          subject: params.subject,
+          html: params.html,
+          cc: params.cc,
+          pdfBytes: params.pdfAttachment.bytes,
+          attachmentFileName: params.pdfAttachment.fileName
+        })
+      : this.buildRawEmail(params.to, params.subject, params.html, params.cc);
     await this.gmail.users.messages.send({
       userId: "me",
       requestBody: {
@@ -132,5 +147,23 @@ export class GmailService {
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
       .replace(/=+$/, "");
+  }
+
+  private buildRawMultipartHtmlWithOptionalPdf(params: {
+    to: string;
+    subject: string;
+    html: string;
+    pdfBytes: Buffer;
+    attachmentFileName: string;
+    cc?: string[];
+  }): string {
+    return this.buildRawMultipartWithPdf({
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+      pdfBytes: params.pdfBytes,
+      attachmentFileName: params.attachmentFileName,
+      cc: params.cc
+    });
   }
 }

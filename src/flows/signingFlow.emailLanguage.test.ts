@@ -11,6 +11,8 @@ import { extractColumnDisplayText } from "../utils/mondayValues";
 import { SigningService } from "../signing/signingService";
 import { SigningFlow } from "./signingFlow";
 
+const minimalPdfBytes = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n");
+
 function robustColumnTextById(item: MondayItem): Record<string, string> {
   const out: Record<string, string> = {};
   for (const col of item.column_values) {
@@ -76,6 +78,7 @@ describe("SigningFlow email language from client country", () => {
         public_url: "p",
         file_extension: "pdf"
       }),
+      downloadAssetBytes: vi.fn().mockResolvedValue(minimalPdfBytes),
       updateText: vi.fn().mockResolvedValue(undefined),
       resolvePrincipalCcEmail: vi.fn().mockResolvedValue(null)
     } as unknown as MondayClient;
@@ -98,17 +101,21 @@ describe("SigningFlow email language from client country", () => {
 
     await flow.startSigning("1", "Trimite Client");
 
+    expect(mondayClient.downloadAssetBytes).toHaveBeenCalledWith("asset1");
     expect(mondayClient.updateStatusIfLabelExists).toHaveBeenCalledWith("b1", "1", SIGN_TRIGGER_COLUMN, SIGN_EMAIL_SENT_LABEL);
     expect(gmailService.sendEmail).toHaveBeenCalledTimes(1);
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       subject: string;
       html: string;
+      pdfAttachment?: { bytes: Buffer; fileName: string };
     };
-    expect(arg.subject).toBe("Solicitare semnare comandă de expediție – CLS8766");
-    expect(arg.html).toContain("Link semnare:");
+    expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics");
+    expect(arg.html).toContain("48 de ore");
     expect(arg.html).toContain("https://svc.example/sign/");
     expect(arg.html).not.toContain("Signing link:");
     expect(arg.html).not.toContain("Hello,");
+    expect(arg.pdfAttachment?.fileName).toBe("doc.pdf");
+    expect(arg.pdfAttachment?.bytes.subarray(0, 4).toString("utf8")).toBe("%PDF");
   });
 
   it("sends English signature request when Tara Client is not Romania", async () => {
@@ -123,11 +130,13 @@ describe("SigningFlow email language from client country", () => {
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       subject: string;
       html: string;
+      pdfAttachment?: { bytes: Buffer; fileName: string };
     };
-    expect(arg.subject).toBe("Signature request for shipment order – CLS8766");
-    expect(arg.html).toContain("Signing link:");
+    expect(arg.subject).toBe("Shipping Order Crystal Logistics");
+    expect(arg.html).toContain("48 hours");
+    expect(arg.html).not.toContain("48 de ore");
     expect(arg.html).not.toContain("Link semnare:");
-    expect(arg.html).not.toContain("Vă rugăm să semnați");
+    expect(arg.pdfAttachment?.bytes.subarray(0, 4).toString("utf8")).toBe("%PDF");
   });
 
   it("uses item name as order reference when pulse id is empty", async () => {
@@ -138,8 +147,9 @@ describe("SigningFlow email language from client country", () => {
 
     await flow.startSigning("1", "Trimite Client");
 
-    const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string };
-    expect(arg.subject).toContain("ONLY-NAME");
+    const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string; html: string };
+    expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics");
+    expect(arg.html).toContain("ONLY-NAME");
   });
 
   it("uses pulse_id_mks1dcwz from value JSON when text is empty (no item.name fallback)", async () => {
@@ -150,8 +160,9 @@ describe("SigningFlow email language from client country", () => {
 
     await flow.startSigning("1", "Trimite Client");
 
-    const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string };
-    expect(arg.subject).toBe("Signature request for shipment order – CLS-01609");
-    expect(arg.subject).not.toContain("TEST_diana");
+    const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string; html: string };
+    expect(arg.subject).toBe("Shipping Order Crystal Logistics");
+    expect(arg.html).toContain("CLS-01609");
+    expect(arg.html).not.toContain("TEST_diana");
   });
 });

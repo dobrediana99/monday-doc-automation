@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import { MondayClient } from "../monday/mondayClient";
 import { GmailService } from "../email/gmailService";
 import { SigningService } from "../signing/signingService";
-import { signingEmailLanguageFromClientCountry } from "../email/signingEmailLocale";
+import { getEmailLanguage } from "../email/signingEmailLocale";
 import { signingPrincipalCcAddresses } from "../email/signingEmailCc";
 import {
   buildSignatureRequestEmail,
@@ -119,7 +119,7 @@ export class SigningFlow {
       await this.mondayClient.updateStatus(boardId, item.id, SIGN_TRIGGER_COLUMN, SIGN_PROCESSING_LABEL);
 
       const clientCountryRaw = columnTextById[CLIENT_COUNTRY_COLUMN_ID] ?? "";
-      const signingEmailLanguage = signingEmailLanguageFromClientCountry(clientCountryRaw);
+      const signingEmailLanguage = getEmailLanguage(clientCountryRaw);
       const emailOrderId = (columnTextById[EMAIL_SUBJECT_ORDER_ID_COLUMN_ID] ?? "").trim();
       // UX: prefer the configured email identifier; keep a non-empty fallback to avoid blank subjects.
       const fallbackOrderId =
@@ -142,8 +142,17 @@ export class SigningFlow {
       });
 
       const signingUrl = `${this.appBaseUrl}/sign/${encodeURIComponent(session.token)}`;
+      const unsignedPdfBytes = await this.mondayClient.downloadAssetBytes(latest.assetId);
+      const attachmentFileName = (() => {
+        const raw = (latest.name ?? "").trim();
+        const base = raw.length > 0 ? path.basename(raw) : "Comanda.pdf";
+        const safe = base.replace(/[\r\n]/g, "_");
+        return safe.toLowerCase().endsWith(".pdf") ? safe : `${safe}.pdf`;
+      })();
+
       const invite = buildSignatureRequestEmail({
         language: signingEmailLanguage,
+        flowType,
         orderNumber: signingOrderReference,
         signingUrl
       });
@@ -155,7 +164,8 @@ export class SigningFlow {
         to: resolved.email,
         subject: invite.subject,
         html: invite.html,
-        cc
+        cc,
+        pdfAttachment: { bytes: unsignedPdfBytes, fileName: attachmentFileName }
       });
 
       // On email successfully sent

@@ -34,3 +34,8 @@ export function isRomaniaClientCountry(raw: string): boolean {
 export function signingEmailLanguageFromClientCountry(raw: string): SigningEmailLanguage {
   return isRomaniaClientCountry(raw) ? "ro" : "en";
 }
+
+/** Preferred name for new call sites: maps a country label/code to signing email language. */
+export function getEmailLanguage(country?: string): SigningEmailLanguage {
+  return signingEmailLanguageFromClientCountry(country ?? "");
+}

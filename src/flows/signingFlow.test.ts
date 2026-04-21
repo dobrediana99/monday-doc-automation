@@ -5,6 +5,8 @@ import { SigningService } from "../signing/signingService";
 import { SigningFlow } from "./signingFlow";
 import { SIGN_EMAIL_SENT_LABEL, SIGN_TRIGGER_COLUMN } from "../utils/mapping";
 
+const minimalPdfBytes = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n");
+
 function itemFixture(params: {
   itemId: string;
   boardId: string;
@@ -57,6 +59,7 @@ describe("SigningFlow resend behavior for expired links", () => {
         public_url: "p",
         file_extension: "pdf"
       }),
+      downloadAssetBytes: vi.fn().mockResolvedValue(minimalPdfBytes),
       updateText: vi.fn().mockResolvedValue(undefined),
       resolvePrincipalCcEmail: vi.fn().mockResolvedValue(null)
     } as unknown as MondayClient;
