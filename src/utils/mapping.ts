@@ -27,6 +27,9 @@ export const EMAIL_SUBJECT_ORDER_ID_COLUMN_ID = "pulse_id_mks1dcwz";
 /** Lookup "Tara Client" — client country of origin; drives signing email language (Romanian vs English). */
 export const CLIENT_COUNTRY_COLUMN_ID = "lookup_mkxttcky";
 
+/** Mirror "Tara Sediu Furnizor" — supplier headquarters country; drives supplier signing email language. */
+export const SUPPLIER_HQ_COUNTRY_COLUMN_ID = "lookup_mm2mndk2";
+
 /** People column "Principal" — CC on signing-related emails when user email resolves from Monday. */
 export const PRINCIPAL_PEOPLE_COLUMN_ID = "deal_owner";
 

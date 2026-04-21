@@ -11,6 +11,7 @@ import {
 } from "../email/signingEmailTemplates";
 import {
   CLIENT_COUNTRY_COLUMN_ID,
+  SUPPLIER_HQ_COUNTRY_COLUMN_ID,
   EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
   ORDER_NUMBER_COLUMN_ID,
   parseSigningFlowType,
@@ -119,7 +120,24 @@ export class SigningFlow {
       await this.mondayClient.updateStatus(boardId, item.id, SIGN_TRIGGER_COLUMN, SIGN_PROCESSING_LABEL);
 
       const clientCountryRaw = columnTextById[CLIENT_COUNTRY_COLUMN_ID] ?? "";
-      const signingEmailLanguage = getEmailLanguage(clientCountryRaw);
+      const supplierHqCountryRaw = columnTextById[SUPPLIER_HQ_COUNTRY_COLUMN_ID] ?? "";
+      const signingEmailLanguage =
+        flowType === "transportator"
+          ? supplierHqCountryRaw.trim().length > 0
+            ? getEmailLanguage(supplierHqCountryRaw)
+            : (() => {
+                console.warn(
+                  JSON.stringify({
+                    event: "supplier_hq_country_missing_language_fallback",
+                    boardId,
+                    itemId: item.id,
+                    columnId: SUPPLIER_HQ_COUNTRY_COLUMN_ID,
+                    fallback: clientCountryRaw.trim().length > 0 ? "client_country" : "default_en"
+                  })
+                );
+                return clientCountryRaw.trim().length > 0 ? getEmailLanguage(clientCountryRaw) : "en";
+              })()
+          : getEmailLanguage(clientCountryRaw);
       const emailOrderId = (columnTextById[EMAIL_SUBJECT_ORDER_ID_COLUMN_ID] ?? "").trim();
       // UX: prefer the configured email identifier; keep a non-empty fallback to avoid blank subjects.
       const fallbackOrderId =

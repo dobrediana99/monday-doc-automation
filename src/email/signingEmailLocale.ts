@@ -39,3 +39,8 @@ export function signingEmailLanguageFromClientCountry(raw: string): SigningEmail
 export function getEmailLanguage(country?: string): SigningEmailLanguage {
   return signingEmailLanguageFromClientCountry(country ?? "");
 }
+
+/** Supplier-specific alias for readability at call sites. */
+export function isRomanianSupplierCountry(value?: string): boolean {
+  return isRomaniaClientCountry(value ?? "");
+}
