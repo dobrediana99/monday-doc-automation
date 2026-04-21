@@ -13,6 +13,10 @@ function emailWrapper(innerHtml: string): string {
   return `<div style="font-family: Arial, sans-serif; line-height: 1.5;">${innerHtml}</div>`;
 }
 
+function renderPlainTextEmailBody(params: { text: string }): string {
+  return emailWrapper(`<div style="white-space: pre-wrap;">${escapeHtml(params.text)}</div>`);
+}
+
 function inviteSubject(params: { language: SigningEmailLanguage; flowType: SigningFlowType }): string {
   if (params.language === "ro") {
     return params.flowType === "client"
@@ -41,6 +45,31 @@ export function buildSignatureRequestEmail(params: {
   const safeOrderRef = escapeHtml(params.orderNumber);
 
   if (params.language === "ro") {
+    if (params.flowType === "transportator") {
+      const transporterRoBody = `Buna ziua,
+
+
+am atasat comanda de transport, am rugamintea sa mi-o trimiteti scanata, semnata si stampilata alaturi de asigurarea CMR,
+
+
+Pentru un proces mai rapid si mai simplu, documentul poate fi semnat electronic accesand linkul de mai jos. Dupa semnare, veti primi automat o copie a documentului semnat. Linkul este valabil 48 de ore de la primirea acestui email:
+
+${params.signingUrl}
+
+
+Atentie!
+Furnizorii nu accepta descarcarea marfurilor din camioane dupa ce s-a primit acceptul soferului de incarcare iar casa de expeditie nu accepta noul pret impus avand deja marfa in camion. In cazul neatentionarii in scris si incarcarii fara acord, transportatorul isi asuma reducerea costului impus de catre casa de expeditie in cazul in care se incarca mai putina marfa si mentinerea pretului in cazul in care se incarca mai multa marfa.`;
+
+      return {
+        subject: inviteSubjectWithOrderRef({
+          language: "ro",
+          flowType: "transportator",
+          orderReference: params.orderNumber
+        }),
+        html: renderPlainTextEmailBody({ text: transporterRoBody })
+      };
+    }
+
     const signingBlock = `
             <p>Pentru un proces mai rapid si mai simplu, documentul poate fi semnat electronic accesand linkul de mai jos. Dupa semnare, veti primi automat o copie a documentului semnat. Linkul este valabil 48 de ore de la primirea acestui email:</p>
             <p><a href="${safeUrl}">${safeUrl}</a></p>
@@ -81,6 +110,28 @@ export function buildSignatureRequestEmail(params: {
           `
             }
           `)
+    };
+  }
+
+  if (params.flowType === "transportator") {
+    const transporterEnBody = `Hello,
+
+Please find the transport order attached. Kindly send it back to us scanned, signed and stamped, together with the CMR insurance.
+
+For a faster and easier process, the document can also be signed electronically using the link below. After signing, you will automatically receive a copy of the signed document. The signing link is valid for 48 hours from receiving this email:
+
+${params.signingUrl}
+
+Attention!
+Suppliers do not accept unloading of goods from trucks after the driver's loading acceptance has been received, and the forwarding company does not accept a newly imposed price once the goods are already loaded in the truck. If no written notice is given and loading takes place without agreement, the carrier accepts the reduced cost imposed by the forwarding company if less goods are loaded, and the original price remains unchanged if more goods are loaded.`;
+
+    return {
+      subject: inviteSubjectWithOrderRef({
+        language: "en",
+        flowType: "transportator",
+        orderReference: params.orderNumber
+      }),
+      html: renderPlainTextEmailBody({ text: transporterEnBody })
     };
   }
 

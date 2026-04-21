@@ -26,8 +26,8 @@ describe("buildSignatureRequestEmail", () => {
       signingUrl: "https://svc/sign/tok"
     });
     expect(subject).toBe("Comanda transport Crystal Logistics - CLS-1");
-    expect(html).toContain("am atasat comanda de transport, am rugamintea sa mi-o trimiteti scanata, semnata si stampilata alaturi de asigurarea CMR.");
-    expect(html).toContain("Linkul este valabil 48 de ore");
+    expect(html).toContain("am atasat comanda de transport, am rugamintea sa mi-o trimiteti scanata, semnata si stampilata alaturi de asigurarea CMR,");
+    expect(html).toContain("Linkul este valabil 48 de ore de la primirea acestui email:");
     expect(html).toContain("https://svc/sign/tok");
     expect(html).toContain("Atentie!");
     expect(html).toContain("Furnizorii nu accepta descarcarea marfurilor din camioane");
@@ -58,9 +58,9 @@ describe("buildSignatureRequestEmail", () => {
     });
     expect(subject).toBe("Transport Order Crystal Logistics - CLS-1");
     expect(html).toContain("Please find the transport order attached. Kindly send it back to us scanned, signed and stamped, together with the CMR insurance.");
-    expect(html).toContain("The signing link is valid for 48 hours");
+    expect(html).toContain("The signing link is valid for 48 hours from receiving this email:");
     expect(html).toContain("https://svc/sign/tok");
     expect(html).toContain("Attention!");
-    expect(html).toContain("Suppliers do not accept unloading of goods from trucks");
+    expect(html).toContain("Suppliers do not accept unloading of goods from trucks after the driver's loading acceptance has been received, and the forwarding company does not accept a newly imposed price once the goods are already loaded in the truck.");
   });
 });
