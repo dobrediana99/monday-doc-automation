@@ -64,9 +64,7 @@ export function buildSignatureRequestEmail(params: {
             <p>am atasat comanda de transport, am rugamintea sa mi-o trimiteti scanata, semnata si stampilata alaturi de asigurarea CMR.</p>
           `
             }
-            <br />
             ${signingBlock}
-            <br />
             ${
               params.flowType === "client"
                 ? `
