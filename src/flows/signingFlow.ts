@@ -5,6 +5,7 @@ import { GmailService } from "../email/gmailService";
 import { SigningService } from "../signing/signingService";
 import { getEmailLanguage } from "../email/signingEmailLocale";
 import { signingPrincipalCcAddresses } from "../email/signingEmailCc";
+import { getFromHeader } from "../email/senderSelection";
 import {
   buildSignatureRequestEmail,
   buildSignedDocumentDeliveryEmail
@@ -121,6 +122,7 @@ export class SigningFlow {
 
       const clientCountryRaw = columnTextById[CLIENT_COUNTRY_COLUMN_ID] ?? "";
       const supplierHqCountryRaw = columnTextById[SUPPLIER_HQ_COUNTRY_COLUMN_ID] ?? "";
+      const senderCountryRaw = flowType === "transportator" ? supplierHqCountryRaw : clientCountryRaw;
       const signingEmailLanguage =
         flowType === "transportator"
           ? supplierHqCountryRaw.trim().length > 0
@@ -180,6 +182,7 @@ export class SigningFlow {
 
       await this.gmailService.sendEmail({
         to: resolved.email,
+        from: getFromHeader(senderCountryRaw),
         subject: invite.subject,
         html: invite.html,
         cc,
@@ -257,10 +260,16 @@ export class SigningFlow {
       });
 
       let cc: string[] | undefined;
+      let from: string | undefined;
       try {
         const itemForCc = await this.mondayClient.getItemById(session.itemId);
         const principalCc = await this.mondayClient.resolvePrincipalCcEmail(itemForCc);
         cc = signingPrincipalCcAddresses(session.recipientEmail, principalCc?.email ?? null);
+        const columnTextById = this.mondayClient.getColumnTextById(itemForCc);
+        const clientCountryRaw = columnTextById[CLIENT_COUNTRY_COLUMN_ID] ?? "";
+        const supplierHqCountryRaw = columnTextById[SUPPLIER_HQ_COUNTRY_COLUMN_ID] ?? "";
+        const senderCountryRaw = session.flowType === "transportator" ? supplierHqCountryRaw : clientCountryRaw;
+        from = getFromHeader(senderCountryRaw);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.warn(
@@ -271,10 +280,13 @@ export class SigningFlow {
             message: message.slice(0, 200)
           })
         );
+        // Safe fallback when Monday lookup fails: pick sender based on already-chosen language.
+        from = session.signingEmailLanguage === "ro" ? getFromHeader("Romania") : getFromHeader("CH");
       }
 
       await this.gmailService.sendEmailWithPdfAttachment({
         to: session.recipientEmail,
+        from,
         subject: delivery.subject,
         html: delivery.html,
         pdfBytes,

@@ -40,6 +40,7 @@ export class GmailService {
 
   async sendEmail(params: {
     to: string;
+    from?: string;
     subject: string;
     html: string;
     cc?: string[];
@@ -48,13 +49,14 @@ export class GmailService {
     const raw = params.pdfAttachment
       ? this.buildRawMultipartHtmlWithOptionalPdf({
           to: params.to,
+          from: params.from,
           subject: params.subject,
           html: params.html,
           cc: params.cc,
           pdfBytes: params.pdfAttachment.bytes,
           attachmentFileName: params.pdfAttachment.fileName
         })
-      : this.buildRawEmail(params.to, params.subject, params.html, params.cc);
+      : this.buildRawEmail(params.to, params.from, params.subject, params.html, params.cc);
     await this.gmail.users.messages.send({
       userId: "me",
       requestBody: {
@@ -65,6 +67,7 @@ export class GmailService {
 
   async sendEmailWithPdfAttachment(params: {
     to: string;
+    from?: string;
     subject: string;
     html: string;
     pdfBytes: Buffer;
@@ -80,8 +83,9 @@ export class GmailService {
     });
   }
 
-  private buildRawEmail(to: string, subject: string, html: string, cc?: string[]): string {
-    const headers: string[] = [`From: ${this.sender}`, `To: ${to}`];
+  private buildRawEmail(to: string, from: string | undefined, subject: string, html: string, cc?: string[]): string {
+    const fromHeader = from?.trim().length ? from.trim() : this.sender;
+    const headers: string[] = [`From: ${fromHeader}`, `To: ${to}`];
     if (cc && cc.length > 0) {
       headers.push(`Cc: ${cc.join(", ")}`);
     }
@@ -103,6 +107,7 @@ export class GmailService {
 
   private buildRawMultipartWithPdf(params: {
     to: string;
+    from?: string;
     subject: string;
     html: string;
     pdfBytes: Buffer;
@@ -114,7 +119,8 @@ export class GmailService {
     const htmlB64 = Buffer.from(params.html, "utf8").toString("base64");
     const pdfB64 = params.pdfBytes.toString("base64");
 
-    const headers: string[] = [`From: ${this.sender}`, `To: ${params.to}`];
+    const fromHeader = params.from?.trim().length ? params.from.trim() : this.sender;
+    const headers: string[] = [`From: ${fromHeader}`, `To: ${params.to}`];
     if (params.cc && params.cc.length > 0) {
       headers.push(`Cc: ${params.cc.join(", ")}`);
     }
@@ -151,6 +157,7 @@ export class GmailService {
 
   private buildRawMultipartHtmlWithOptionalPdf(params: {
     to: string;
+    from?: string;
     subject: string;
     html: string;
     pdfBytes: Buffer;
@@ -159,6 +166,7 @@ export class GmailService {
   }): string {
     return this.buildRawMultipartWithPdf({
       to: params.to,
+      from: params.from,
       subject: params.subject,
       html: params.html,
       pdfBytes: params.pdfBytes,

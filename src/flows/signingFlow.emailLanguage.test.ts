@@ -107,8 +107,10 @@ describe("SigningFlow email language from client country", () => {
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       subject: string;
       html: string;
+      from?: string;
       pdfAttachment?: { bytes: Buffer; fileName: string };
     };
+    expect(arg.from).toContain("acc@crystal-logistics-services.com");
     expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics - CLS8766");
     expect(arg.html).toContain("48 de ore");
     expect(arg.html).toContain("https://svc.example/sign/");
@@ -130,8 +132,10 @@ describe("SigningFlow email language from client country", () => {
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       subject: string;
       html: string;
+      from?: string;
       pdfAttachment?: { bytes: Buffer; fileName: string };
     };
+    expect(arg.from).toContain("acc.ch@crystal-logistics-services.com");
     expect(arg.subject).toBe("Shipping Order Crystal Logistics - CLS8766");
     expect(arg.html).toContain("48 hours");
     expect(arg.html).not.toContain("48 de ore");

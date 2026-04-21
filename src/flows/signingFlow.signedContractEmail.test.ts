@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { MondayClient, MondayItem } from "../monday/mondayClient";
 import type { GmailService } from "../email/gmailService";
-import { EMAIL_SUBJECT_ORDER_ID_COLUMN_ID } from "../utils/mapping";
+import { CLIENT_COUNTRY_COLUMN_ID, EMAIL_SUBJECT_ORDER_ID_COLUMN_ID, SUPPLIER_HQ_COUNTRY_COLUMN_ID } from "../utils/mapping";
 import { SigningService } from "../signing/signingService";
 import { SigningFlow } from "./signingFlow";
 
@@ -26,6 +26,7 @@ describe("SigningFlow signed-contract recipient email", () => {
         name: "Item",
         board: { id: "b1" },
         column_values: [
+          { id: CLIENT_COUNTRY_COLUMN_ID, type: "lookup", text: "Germany", display_value: "Germany", value: null },
           {
             id: EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
             type: "text",
@@ -36,7 +37,11 @@ describe("SigningFlow signed-contract recipient email", () => {
         ],
         assets: []
       } as MondayItem),
-      getColumnTextById: (_item: MondayItem) => ({}),
+      getColumnTextById: (item: MondayItem) => {
+        const out: Record<string, string> = {};
+        for (const col of item.column_values) out[col.id] = col.display_value?.trim() || col.text || "";
+        return out;
+      },
       updateStatus: vi.fn().mockResolvedValue(undefined),
       resolveLatestFileAssetFromFileColumn: vi.fn(),
       updateText: vi.fn().mockResolvedValue(undefined),
@@ -86,12 +91,14 @@ describe("SigningFlow signed-contract recipient email", () => {
     expect(gmailService.sendEmailWithPdfAttachment).toHaveBeenCalledTimes(1);
     const arg = (gmailService.sendEmailWithPdfAttachment as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       to: string;
+      from?: string;
       pdfBytes: Buffer;
       attachmentFileName: string;
       subject: string;
       html: string;
     };
     expect(arg.to).toBe("client@example.com");
+    expect(arg.from).toContain("acc.ch@crystal-logistics-services.com");
     expect(arg.attachmentFileName).toBe("Contract RO_signed.pdf");
     expect(arg.subject).toBe("Signed document – CLS8766");
     expect(arg.html).toContain("Please find attached the signed document");
@@ -101,7 +108,17 @@ describe("SigningFlow signed-contract recipient email", () => {
   });
 
   it("sends signed PDF to supplier email for transportator session", async () => {
-    const { gmailService, signingService, flow } = makeDeps();
+    const { mondayClient, gmailService, signingService, flow } = makeDeps();
+    mondayClient.getItemById = vi.fn().mockResolvedValue({
+      id: "2",
+      name: "Item2",
+      board: { id: "b1" },
+      column_values: [
+        { id: SUPPLIER_HQ_COUNTRY_COLUMN_ID, type: "mirror", text: "Romania", display_value: "Romania", value: null },
+        { id: EMAIL_SUBJECT_ORDER_ID_COLUMN_ID, type: "text", text: "T-99", display_value: "T-99", value: null }
+      ],
+      assets: []
+    } as MondayItem);
     const session = await signingService.createSession({
       itemId: "2",
       boardId: "b1",
@@ -130,9 +147,11 @@ describe("SigningFlow signed-contract recipient email", () => {
 
     const arg = (gmailService.sendEmailWithPdfAttachment as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       to: string;
+      from?: string;
       subject: string;
     };
     expect(arg.to).toBe("furnizor@supplier.test");
+    expect(arg.from).toContain("acc@crystal-logistics-services.com");
     expect(arg.subject).toBe("Transmitere document semnat – T-99");
     expect(arg.html).toContain("Vă transmitem atașat documentul semnat");
     expect(arg.html).not.toContain("Please find attached");

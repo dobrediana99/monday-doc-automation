@@ -87,7 +87,8 @@ describe("SigningFlow supplier/transporter email language from supplier HQ count
     await flow.startSigning("1", "Trimite Transportator");
 
     expect(mondayClient.updateStatusIfLabelExists).toHaveBeenCalledWith("b1", "1", SIGN_TRIGGER_COLUMN, SIGN_EMAIL_SENT_LABEL);
-    const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string; html: string };
+    const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string; html: string; from?: string };
+    expect(arg.from).toContain("acc@crystal-logistics-services.com");
     expect(arg.subject).toBe("Comanda transport Crystal Logistics - CLS-01609");
     expect(arg.html).toContain("am atasat comanda de transport");
     expect(arg.html).toContain("Linkul este valabil 48 de ore");
@@ -120,7 +121,8 @@ describe("SigningFlow supplier/transporter email language from supplier HQ count
 
     await flow.startSigning("1", "Trimite Transportator");
 
-    const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string; html: string };
+    const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string; html: string; from?: string };
+    expect(arg.from).toContain("acc.ch@crystal-logistics-services.com");
     expect(arg.subject).toBe("Transport Order Crystal Logistics - CLS-01609");
     expect(arg.html).toContain("Please find the transport order attached.");
     expect(arg.html).toContain("The signing link is valid for 48 hours");
