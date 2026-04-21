@@ -62,6 +62,7 @@ export function buildSignatureRequestEmail(params: {
           `
                 : `
             <p>am atasat comanda de transport, am rugamintea sa mi-o trimiteti scanata, semnata si stampilata alaturi de asigurarea CMR.</p>
+            <br />
           `
             }
             ${signingBlock}
@@ -74,6 +75,7 @@ export function buildSignatureRequestEmail(params: {
             <p>In cazul in care marfa transportata se incadreaza intr-una din categoriile bunurilor cu risc fiscal ridicat (BRFR), beneficiarul (importatorul) are obligatia de a ne furniza in timp util codurile UIT necesare pentru toate segmentele transporturilor nationale aferente, pentru a putea fi trecute pe CMR-uri +avize de livrare (POD). Nerespectarea acestei reglementari in timp util poate produce intarzieri, penalitati si amenzi care vor fi suportate integral de catre client. Prezenta comanda a fost expediata in urma acceptarii ofertei iar noi deja am demarat organizarea serviciului de transport. In cazul in care nu se trimite refuzul scris in maximum o ora de la trimiterea acestei comenzi, comanda se considera acceptata integral.</p>
           `
                 : `
+            <br />
             <p>Atentie!</p>
             <p>Furnizorii nu accepta descarcarea marfurilor din camioane dupa ce s-a primit acceptul soferului de incarcare iar casa de expeditie nu accepta noul pret impus avand deja marfa in camion. In cazul neatentionarii in scris si incarcarii fara acord, transportatorul isi asuma reducerea costului impus de catre casa de expeditie in cazul in care se incarca mai putina marfa si mentinerea pretului in cazul in care se incarca mai multa marfa.</p>
           `
@@ -104,6 +106,7 @@ export function buildSignatureRequestEmail(params: {
           `
                 : `
             <p>Please find the transport order attached. Kindly send it back to us scanned, signed and stamped, together with the CMR insurance.</p>
+            <br />
           `
             }
             <br />
@@ -120,7 +123,7 @@ export function buildSignatureRequestEmail(params: {
           `
                 : `
             <p>Attention!</p>
-            <p>Suppliers do not accept unloading of goods from trucks after the driver's loading acceptance has been received, and the forwarding company does not accept a newly imposed price once the goods are already loaded in the truck. If no written notice is given and loading takes place without agreement, the carrier accepts the reduced cost imposed by the forwarding company if less goods are loaded, and the original price remains unchanged if more goods are loaded.</p>
+            <p>Suppliers do not accept unloading of goods from trucks after the driver's loading acceptance has been received, and the forwarding company does not accept the newly imposed price as the goods are already loaded in the truck. In case no written notice is given and loading takes place without agreement, the carrier assumes the cost reduction imposed by the forwarding company if less goods are loaded, and maintains the price if more goods are loaded.</p>
           `
             }
           `)
