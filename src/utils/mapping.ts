@@ -33,6 +33,9 @@ export const SUPPLIER_HQ_COUNTRY_COLUMN_ID = "lookup_mm2mndk2";
 /** People column "Principal" — CC on signing-related emails when user email resolves from Monday. */
 export const PRINCIPAL_PEOPLE_COLUMN_ID = "deal_owner";
 
+/** Status column "Sursa Client" — used to conditionally include transporter contact note in supplier emails. */
+export const CLIENT_SOURCE_COLUMN_ID = "color_mktcvtpz";
+
 export const SIGN_TRIGGER_COLUMN = "color_mm28cpwk";
 
 export const SIGN_ERROR_TEXT_COLUMN = "text_mm28m315";
@@ -120,41 +123,62 @@ export const SIGN_FLOW_STATUS_COLUMN: Record<SigningFlowType, string> = {
 
 export type ClientEmailSource = "primary" | "fallback";
 
+export const SUPPLIER_SIGNING_EMAIL_COLUMN_ID = "email_mm32zqxt"; // Email Semnare Furnizor
+export const SUPPLIER_EMAIL_FALLBACK_COLUMN_ID = "lookup_mkshweae"; // Email Furnizor
+
+const SIMPLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeEmailCandidate(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const v = value.trim();
+  if (!v) {
+    return null;
+  }
+  return SIMPLE_EMAIL.test(v) ? v : null;
+}
+
 export function resolveRecipientEmail(params: {
   flowType: SigningFlowType;
   itemColumnTextById: Record<string, string>;
 }): { email: string; emailSource: ClientEmailSource | "transportator"; usedColumnId: string } | null {
   const { flowType, itemColumnTextById } = params;
 
-  const normalize = (value: unknown): string | null => {
-    if (typeof value !== "string") {
-      return null;
-    }
-    const v = value.trim();
-    return v.includes("@") ? v : null;
-  };
-
   if (flowType === "client") {
     const primaryColumnId = "email_mkse8jyb"; // Email Semnare Client
     const fallbackColumnId = "lookup_mkyqf8ke"; // Email Companie
 
-    const primary = normalize(itemColumnTextById[primaryColumnId]);
+    const primary = normalizeEmailCandidate(itemColumnTextById[primaryColumnId]);
     if (primary) {
       return { email: primary, emailSource: "primary", usedColumnId: primaryColumnId };
     }
-    const fallback = normalize(itemColumnTextById[fallbackColumnId]);
+    const fallback = normalizeEmailCandidate(itemColumnTextById[fallbackColumnId]);
     if (fallback) {
       return { email: fallback, emailSource: "fallback", usedColumnId: fallbackColumnId };
     }
     return null;
   }
 
-  const transportatorEmailColumnId = "lookup_mkshweae"; // Email Furnizor
-  const transportatorEmail = normalize(itemColumnTextById[transportatorEmailColumnId]);
-  if (!transportatorEmail) {
-    return null;
+  const signingEmail = normalizeEmailCandidate(itemColumnTextById[SUPPLIER_SIGNING_EMAIL_COLUMN_ID]);
+  if (signingEmail) {
+    return {
+      email: signingEmail,
+      emailSource: "transportator",
+      usedColumnId: SUPPLIER_SIGNING_EMAIL_COLUMN_ID
+    };
   }
-  return { email: transportatorEmail, emailSource: "transportator", usedColumnId: transportatorEmailColumnId };
+
+  const fallbackEmail = normalizeEmailCandidate(itemColumnTextById[SUPPLIER_EMAIL_FALLBACK_COLUMN_ID]);
+  if (fallbackEmail) {
+    return {
+      email: fallbackEmail,
+      emailSource: "transportator",
+      usedColumnId: SUPPLIER_EMAIL_FALLBACK_COLUMN_ID
+    };
+  }
+
+  return null;
 }
 
 export function viewedLabelForFlow(params: {

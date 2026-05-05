@@ -1,6 +1,31 @@
 import type { SigningEmailLanguage } from "./signingEmailLocale";
 import type { SigningFlowType } from "../utils/mapping";
 
+const TRANSPORT_ORGANIZATION_CONTACT_NOTE = `
+Pentru organizarea si monitorizarea transportului puteti lua legatura cu Ana Maria Tamas.
+
+Email: ana-maria.t@crystal-logistics-services.com
+Telefon: +40 736 936 624
+`.trim();
+
+const TRANSPORT_ORGANIZATION_CONTACT_NOTE_HTML = `
+<p>Pentru organizarea si monitorizarea transportului puteti lua legatura cu Ana Maria Tamas.</p>
+<p>
+  Email: <a href="mailto:ana-maria.t@crystal-logistics-services.com">ana-maria.t@crystal-logistics-services.com</a><br>
+  Telefon: +40 736 936 624
+</p>
+`.trim();
+
+const CLIENT_SOURCE_NO_CONTACT_NOTE = new Set(["Ionut Dumitru", "Robert Florea", "Timocom", "Trans.eu"]);
+
+function shouldIncludeTransportContactNote(clientSource?: string | null): boolean {
+  const s = (clientSource ?? "").trim();
+  if (!s) {
+    return true;
+  }
+  return !CLIENT_SOURCE_NO_CONTACT_NOTE.has(s);
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -40,12 +65,14 @@ export function buildSignatureRequestEmail(params: {
   flowType: SigningFlowType;
   orderNumber: string;
   signingUrl: string;
+  clientSource?: string | null;
 }): { subject: string; html: string } {
   const safeUrl = escapeHtml(params.signingUrl);
   const safeOrderRef = escapeHtml(params.orderNumber);
 
   if (params.language === "ro") {
     if (params.flowType === "transportator") {
+      const includeContactNote = shouldIncludeTransportContactNote(params.clientSource);
       const transporterRoBody = `Buna ziua,
 
 
@@ -57,7 +84,7 @@ Pentru un proces mai rapid si mai simplu, documentul poate fi semnat electronic 
 ${params.signingUrl}
 
 
-Atentie!
+${includeContactNote ? `${TRANSPORT_ORGANIZATION_CONTACT_NOTE}\n\n` : ""}Atentie!
 Furnizorii nu accepta descarcarea marfurilor din camioane dupa ce s-a primit acceptul soferului de incarcare iar casa de expeditie nu accepta noul pret impus avand deja marfa in camion. In cazul neatentionarii in scris si incarcarii fara acord, transportatorul isi asuma reducerea costului impus de catre casa de expeditie in cazul in care se incarca mai putina marfa si mentinerea pretului in cazul in care se incarca mai multa marfa.`;
 
       return {
@@ -114,6 +141,7 @@ Furnizorii nu accepta descarcarea marfurilor din camioane dupa ce s-a primit acc
   }
 
   if (params.flowType === "transportator") {
+    const includeContactNote = shouldIncludeTransportContactNote(params.clientSource);
     const transporterEnBody = `Hello,
 
 Please find the transport order attached. Kindly send it back to us scanned, signed and stamped, together with the CMR insurance.
@@ -122,6 +150,7 @@ For a faster and easier process, the document can also be signed electronically 
 
 ${params.signingUrl}
 
+${includeContactNote ? `\n${TRANSPORT_ORGANIZATION_CONTACT_NOTE}\n\n` : ""}
 Attention!
 Suppliers do not accept unloading of goods from trucks after the driver's loading acceptance has been received, and the forwarding company does not accept a newly imposed price once the goods are already loaded in the truck. If no written notice is given and loading takes place without agreement, the carrier accepts the reduced cost imposed by the forwarding company if less goods are loaded, and the original price remains unchanged if more goods are loaded.`;
 

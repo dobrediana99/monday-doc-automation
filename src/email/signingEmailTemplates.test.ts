@@ -33,6 +33,32 @@ describe("buildSignatureRequestEmail", () => {
     expect(html).toContain("Furnizorii nu accepta descarcarea marfurilor din camioane");
   });
 
+  it("transportator email includes transport organization contact note when Sursa Client is not in allowlist", () => {
+    const { html } = buildSignatureRequestEmail({
+      language: "ro",
+      flowType: "transportator",
+      orderNumber: "CLS-1",
+      signingUrl: "https://svc/sign/tok",
+      clientSource: "Altceva"
+    });
+    expect(html).toContain("Pentru organizarea si monitorizarea transportului puteti lua legatura cu Ana Maria Tamas.");
+    expect(html).toContain("ana-maria.t@crystal-logistics-services.com");
+    expect(html).toContain("+40 736 936 624");
+  });
+
+  it("transportator email does NOT include transport organization contact note when Sursa Client is in allowlist", () => {
+    const { html } = buildSignatureRequestEmail({
+      language: "ro",
+      flowType: "transportator",
+      orderNumber: "CLS-1",
+      signingUrl: "https://svc/sign/tok",
+      clientSource: "Timocom"
+    });
+    expect(html).not.toContain("Pentru organizarea si monitorizarea transportului puteti lua legatura cu Ana Maria Tamas.");
+    expect(html).not.toContain("ana-maria.t@crystal-logistics-services.com");
+    expect(html).not.toContain("+40 736 936 624");
+  });
+
   it("EN client subject includes order reference and body includes required text + signing link", () => {
     const { html, subject } = buildSignatureRequestEmail({
       language: "en",

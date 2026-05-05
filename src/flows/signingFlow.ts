@@ -12,6 +12,7 @@ import {
 } from "../email/signingEmailTemplates";
 import {
   CLIENT_COUNTRY_COLUMN_ID,
+  CLIENT_SOURCE_COLUMN_ID,
   SUPPLIER_HQ_COUNTRY_COLUMN_ID,
   EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
   ORDER_NUMBER_COLUMN_ID,
@@ -81,8 +82,32 @@ export class SigningFlow {
 
       const resolved = resolveRecipientEmail({ flowType, itemColumnTextById: columnTextById });
       if (!resolved) {
+        console.info(
+          JSON.stringify({
+            event: "signing_recipient_email_missing_or_invalid",
+            itemId,
+            boardId,
+            flowType,
+            attemptedColumns: flowType === "transportator"
+              ? ["email_mm32zqxt", "lookup_mkshweae"]
+              : ["email_mkse8jyb", "lookup_mkyqf8ke"]
+          })
+        );
+        if (flowType === "transportator") {
+          throw new Error("Nu există email valid pentru furnizor. Verifică Email Semnare Furnizor sau Email Furnizor.");
+        }
         throw new Error("Nu am putut determina email-ul destinatarului pentru semnare (verifica coloanele email).");
       }
+      console.info(
+        JSON.stringify({
+          event: "signing_recipient_email_resolved",
+          itemId,
+          boardId,
+          flowType,
+          usedColumnId: resolved.usedColumnId,
+          emailSource: resolved.emailSource
+        })
+      );
 
       const existingSession = await this.signingService.getActiveSession({
         itemId: item.id,
@@ -174,7 +199,8 @@ export class SigningFlow {
         language: signingEmailLanguage,
         flowType,
         orderNumber: signingOrderReference,
-        signingUrl
+        signingUrl,
+        clientSource: columnTextById[CLIENT_SOURCE_COLUMN_ID] ?? ""
       });
 
       const principalCc = await this.mondayClient.resolvePrincipalCcEmail(item);
