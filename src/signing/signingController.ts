@@ -300,6 +300,9 @@ export function renderSignPage(token: string): string {
       .notice { border: 1px solid #ffe08a; background: #fff8dd; color: #3a2a00; padding: 10px 12px; border-radius: 8px; }
       .notice.ok { border-color: #b7e2c1; background: #f1fbf3; color: #123018; }
       .disabledPad { opacity: 0.55; }
+      .pdf-scroll-container { width: 100%; height: 70vh; overflow: auto; border: 1px solid #e6e8ee; border-radius: 8px; background: #fff; }
+      .pdf-page { display: block; margin: 12px auto; box-shadow: 0 1px 6px rgba(0,0,0,0.08); border-radius: 6px; }
+      .pdf-loading { padding: 10px 12px; }
     </style>
   </head>
   <body>
@@ -321,7 +324,10 @@ export function renderSignPage(token: string): string {
           <button id="goToEnd" type="button">Mergi la finalul documentului / Go to end of document</button>
           <span class="muted">Apasă pentru a merge la finalul documentului, apoi completează semnătura.<br />EN: Click to jump to the end of the document, then complete the signature.</span>
         </div>
-        <iframe id="documentPreview" src="/sign/${encodedToken}/document" title="Previzualizare document / Document preview"></iframe>
+        <div id="documentPreviewScroll" class="pdf-scroll-container" aria-label="Previzualizare document / Document preview">
+          <div id="pdfLoading" class="pdf-loading muted">Se încarcă documentul… / Loading document…</div>
+          <div id="pdfPages"></div>
+        </div>
         <p class="muted" style="margin: 10px 0 0 0;">
           Dacă previzualizarea nu se încarcă, deschide în tab nou:<br />
           If the preview does not load, open it in a new tab:
@@ -489,10 +495,10 @@ export function renderSignPage(token: string): string {
         if (notice) {
           if (documentReviewed) {
             notice.classList.add('ok');
-            notice.textContent = 'Document parcurs. Poți semna.\\nEN: Document reviewed. You can sign.';
+            notice.textContent = 'Document parcurs / Document reviewed';
           } else {
             notice.classList.remove('ok');
-            notice.innerHTML = 'Pentru a semna, mergi mai întâi la finalul documentului.<br />EN: To sign, go to the end of the document first.';
+            notice.innerHTML = 'Pentru a semna, parcurge documentul până la final.<br />EN: To sign, review the document to the end.';
           }
         }
         canvas.classList.toggle('disabledPad', !documentReviewed);
@@ -500,19 +506,93 @@ export function renderSignPage(token: string): string {
       }
 
       document.getElementById('goToEnd').onclick = () => {
-        const iframe = document.getElementById('documentPreview');
+        const preview = document.getElementById('documentPreviewScroll');
         const signatureCard = document.getElementById('signatureCard');
-        try {
-          const base = '/sign/${encodedToken}/document';
-          const cacheBust = Date.now();
-          iframe.src = base + '?jump=end&t=' + cacheBust + '#page=999&zoom=page-width';
-        } catch {}
+        if (preview && preview.scrollTo) {
+          preview.scrollTo({ top: preview.scrollHeight, behavior: 'smooth' });
+        }
+        // Mark reviewed (button path) and still allow manual scroll detection separately.
         setReviewed(true);
         signatureCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
       };
 
       // Initial state: enforce review before signing.
       setReviewed(false);
+
+      function markDocumentReviewed() {
+        setReviewed(true);
+      }
+
+      // Custom PDF viewer via PDF.js so we can detect manual scroll reliably.
+      (function initPdfPreview() {
+        const preview = document.getElementById('documentPreviewScroll');
+        const pagesEl = document.getElementById('pdfPages');
+        const loadingEl = document.getElementById('pdfLoading');
+        const url = '/sign/${encodedToken}/document';
+
+        if (!preview || !pagesEl) return;
+
+        const threshold = 24;
+        preview.addEventListener('scroll', () => {
+          const reachedBottom = preview.scrollTop + preview.clientHeight >= preview.scrollHeight - threshold;
+          if (reachedBottom) {
+            markDocumentReviewed();
+          }
+        });
+
+        // Load PDF.js from CDN (no bundler in this project).
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js';
+        script.onload = async () => {
+          try {
+            if (!window.pdfjsLib) {
+              throw new Error('pdfjs_missing');
+            }
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+
+            const loadingTask = window.pdfjsLib.getDocument({ url });
+            const pdf = await loadingTask.promise;
+            if (loadingEl) loadingEl.remove();
+
+            // Render all pages.
+            for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+              const page = await pdf.getPage(pageNumber);
+              const containerWidth = Math.max(320, preview.clientWidth - 24);
+              const unscaled = page.getViewport({ scale: 1 });
+              const scale = containerWidth / unscaled.width;
+              const viewport = page.getViewport({ scale });
+
+              const canvasEl = document.createElement('canvas');
+              canvasEl.className = 'pdf-page';
+              const ctx2d = canvasEl.getContext('2d');
+              canvasEl.width = Math.floor(viewport.width);
+              canvasEl.height = Math.floor(viewport.height);
+              canvasEl.style.width = Math.floor(viewport.width) + 'px';
+              canvasEl.style.height = Math.floor(viewport.height) + 'px';
+              pagesEl.appendChild(canvasEl);
+
+              await page.render({ canvasContext: ctx2d, viewport }).promise;
+            }
+          } catch (e) {
+            // Fallback: show iframe preview when PDF.js fails. Manual scroll detection isn't possible in this mode.
+            if (loadingEl) {
+              loadingEl.textContent = 'Previzualizarea avansată nu este disponibilă. / Advanced preview unavailable.';
+            }
+            const iframe = document.createElement('iframe');
+            iframe.id = 'documentPreview';
+            iframe.src = url;
+            iframe.title = 'Previzualizare document / Document preview';
+            iframe.style.width = '100%';
+            iframe.style.height = '70vh';
+            iframe.style.border = '1px solid #e6e8ee';
+            iframe.style.borderRadius = '8px';
+            iframe.style.background = '#fff';
+            pagesEl.appendChild(iframe);
+          }
+        };
+        document.head.appendChild(script);
+      })();
 
       document.getElementById('submit').onclick = async () => {
         const status = document.getElementById('status');
@@ -525,8 +605,8 @@ export function renderSignPage(token: string): string {
         if (!documentReviewed) {
           bilingualStatus(
             status,
-            'Pentru a semna, mergi mai întâi la finalul documentului.',
-            'To sign, go to the end of the document first.'
+            'Pentru a semna, parcurge documentul până la final.',
+            'To sign, review the document to the end.'
           );
           return;
         }

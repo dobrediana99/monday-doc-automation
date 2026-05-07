@@ -16,19 +16,30 @@ describe("renderSignPage", () => {
 
   it("includes Go to end of document button and iframe id for preview", () => {
     expect(html).toContain("Mergi la finalul documentului / Go to end of document");
-    expect(html).toContain('id="documentPreview"');
+    expect(html).toContain('id="documentPreviewScroll"');
   });
 
   it("includes script logic to jump to end of document and fallback scroll to signature card", () => {
-    expect(html).toContain("#page=999");
     expect(html).toContain("scrollIntoView");
     expect(html).toContain("signatureCard");
+    expect(html).toContain("preview.scrollTo");
   });
 
   it("requires document review before enabling submit", () => {
     expect(html).toContain("let documentReviewed = false");
     expect(html).toContain("consent && hasInk && nameOk && documentReviewed");
-    expect(html).toContain("Pentru a semna, mergi mai întâi la finalul documentului");
+    expect(html).toContain("Pentru a semna, parcurge documentul până la final");
+    expect(html).toContain("function markDocumentReviewed()");
+  });
+
+  it("detects manual scroll reaching bottom for review unlock", () => {
+    expect(html).toContain("addEventListener('scroll'");
+    expect(html).toContain("preview.scrollTop + preview.clientHeight >= preview.scrollHeight - threshold");
+    expect(html).toContain("const threshold = 24");
+  });
+
+  it("includes reviewed status copy", () => {
+    expect(html).toContain("Document parcurs / Document reviewed");
   });
 
   it("includes bilingual signing success copy in the embedded script", () => {
