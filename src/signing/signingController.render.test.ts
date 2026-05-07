@@ -10,6 +10,21 @@ import {
 describe("renderSignPage", () => {
   const html = renderSignPage("test-token-abc");
 
+  it("includes Crystal/CLS logo asset", () => {
+    expect(html).toContain('src="/sign/assets/logo-crystal.png"');
+  });
+
+  it("includes Go to end of document button and iframe id for preview", () => {
+    expect(html).toContain("Mergi la finalul documentului / Go to end of document");
+    expect(html).toContain('id="documentPreview"');
+  });
+
+  it("includes script logic to jump to end of document and fallback scroll to signature card", () => {
+    expect(html).toContain("#page=999");
+    expect(html).toContain("scrollIntoView");
+    expect(html).toContain("signatureCard");
+  });
+
   it("includes bilingual signing success copy in the embedded script", () => {
     expect(html).toContain("Documentul a fost semnat cu succes.");
     expect(html).toContain("The document was signed successfully.");

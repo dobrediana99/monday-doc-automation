@@ -1,4 +1,6 @@
 import { Router, type Request, type Response } from "express";
+import path from "node:path";
+import { promises as fs } from "node:fs";
 import { z } from "zod";
 import { SigningService } from "./signingService";
 import { AuditService } from "./auditService";
@@ -71,6 +73,18 @@ export function createSigningRouter(params: {
   signingFlow: SigningFlow;
 }): Router {
   const router = Router();
+
+  router.get("/assets/logo-crystal.png", async (_req, res) => {
+    try {
+      const p = path.join(__dirname, "assets", "logo_crystal.png");
+      const bytes = await fs.readFile(p);
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      return res.status(200).send(bytes);
+    } catch {
+      return res.status(404).send("Not found");
+    }
+  });
 
   router.get("/:token", async (req, res) => {
     const token = getTokenParam(req);
@@ -265,8 +279,11 @@ export function renderSignPage(token: string): string {
     <title>CLS - Semnare document / Document signing</title>
     <style>
       body { font-family: Arial, sans-serif; margin: 0; color: #111; background: #f6f7f9; }
-      header { background: #0b1f3a; color: #fff; padding: 14px 18px; }
+      header { background: #0b1f3a; color: #fff; padding: 12px 18px; }
       header strong { letter-spacing: 0.5px; }
+      .headerRow { max-width: 980px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+      .logo { height: 40px; width: auto; display: block; }
+      .headerTitle { font-weight: 700; }
       main { max-width: 980px; margin: 18px auto; padding: 0 18px; }
       .card { background: #fff; border: 1px solid #e6e8ee; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
       .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
@@ -283,7 +300,12 @@ export function renderSignPage(token: string): string {
     </style>
   </head>
   <body>
-    <header><strong>CLS</strong> &nbsp;|&nbsp; Semnare document / Document signing</header>
+    <header>
+      <div class="headerRow">
+        <img class="logo" src="/sign/assets/logo-crystal.png" alt="Crystal Logistics Services" />
+        <div class="headerTitle"><strong>CLS</strong> &nbsp;|&nbsp; Semnare document / Document signing</div>
+      </div>
+    </header>
     <main class="grid">
       <section class="card">
         <h3 style="margin: 0 0 4px 0;">Document</h3>
@@ -292,7 +314,11 @@ export function renderSignPage(token: string): string {
           Deschideti si verificati documentul inainte de semnare.<br />
           Please review the document before signing.
         </p>
-        <iframe src="/sign/${encodedToken}/document" title="Previzualizare document / Document preview"></iframe>
+        <div class="row" style="display:flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+          <button id="goToEnd" type="button">Mergi la finalul documentului / Go to end of document</button>
+          <span class="muted">Apasă pentru a merge la finalul documentului, apoi completează semnătura.<br />EN: Click to jump to the end of the document, then complete the signature.</span>
+        </div>
+        <iframe id="documentPreview" src="/sign/${encodedToken}/document" title="Previzualizare document / Document preview"></iframe>
         <p class="muted" style="margin: 10px 0 0 0;">
           Dacă previzualizarea nu se încarcă, deschide în tab nou:<br />
           If the preview does not load, open it in a new tab:
@@ -300,7 +326,7 @@ export function renderSignPage(token: string): string {
         </p>
       </section>
 
-      <section class="card">
+      <section class="card" id="signatureCard">
         <h3 style="margin: 0 0 10px 0;">Semnatura / Signature</h3>
         <div class="row">
           <label>
@@ -438,6 +464,18 @@ export function renderSignPage(token: string): string {
         ctx.clearRect(0, 0, rect.width, rect.height);
         hasInk = false;
         updateSubmitState();
+      };
+
+      document.getElementById('goToEnd').onclick = () => {
+        const iframe = document.getElementById('documentPreview');
+        const signatureCard = document.getElementById('signatureCard');
+        try {
+          const base = '/sign/${encodedToken}/document';
+          iframe.src = base + '#page=999&zoom=page-width';
+        } catch {}
+        if (signatureCard && signatureCard.scrollIntoView) {
+          signatureCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       };
 
       document.getElementById('submit').onclick = async () => {

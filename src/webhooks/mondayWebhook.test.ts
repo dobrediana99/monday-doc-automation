@@ -55,6 +55,16 @@ async function postMonday(app: express.Express, body: unknown): Promise<{ status
   });
 }
 
+async function postMondayToPort(port: number, body: unknown): Promise<{ status: number; json: unknown }> {
+  const res = await fetch(`http://127.0.0.1:${port}/webhooks/monday`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const json = (await res.json()) as unknown;
+  return { status: res.status, json };
+}
+
 function generationPayload(itemId: number, boardId?: number) {
   return {
     event: {
@@ -108,6 +118,17 @@ describe("createMondayWebhookRouter document generation idempotency", () => {
 
   it("returns duplicate for a concurrent second delivery while generation is still running", async () => {
     const idempotency = new IdempotencyService(60_000);
+    let firstRememberKey: string | null = null;
+    let remembered!: () => void;
+    const rememberedGate = new Promise<void>((resolve) => {
+      remembered = resolve;
+    });
+    const origRemember = idempotency.remember.bind(idempotency);
+    vi.spyOn(idempotency, "remember").mockImplementation((key: string) => {
+      if (!firstRememberKey) firstRememberKey = key;
+      origRemember(key);
+      remembered();
+    });
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -120,12 +141,34 @@ describe("createMondayWebhookRouter document generation idempotency", () => {
     });
 
     const body = generationPayload(2003, 2030349838);
-    const both = Promise.all([postMonday(app, body), postMonday(app, body)]);
-    await new Promise<void>((r) => {
-      setTimeout(r, 40);
-    });
-    release();
-    const [a, b] = await both;
+    const server = http.createServer(app);
+    const [a, b] = await new Promise<[Awaited<ReturnType<typeof postMondayToPort>>, Awaited<ReturnType<typeof postMondayToPort>>]>(
+      (resolve, reject) => {
+        server.listen(0, "127.0.0.1", async () => {
+          try {
+            const addr = server.address();
+            if (!addr || typeof addr === "string") {
+              throw new Error("no listen address");
+            }
+            const port = addr.port;
+            const first = postMondayToPort(port, body);
+            await rememberedGate; // Ensure first request remembered the key before starting the second
+            expect(firstRememberKey).toBe(idempotency.makeKey("2003", GEN_COLUMN_ID, "Client SRL"));
+            expect(idempotency.isDuplicate(firstRememberKey!)).toBe(true);
+            const second = postMondayToPort(port, body);
+            const secondResult = await second;
+            release();
+            const firstResult = await first;
+            const out = [firstResult, secondResult];
+            server.close();
+            resolve(out as [any, any]);
+          } catch (e) {
+            server.close();
+            reject(e);
+          }
+        });
+      }
+    );
 
     const skippedDup = [a, b].find((r) => (r.json as { skipped?: string }).skipped === "duplicate");
     const okGen = [a, b].find((r) => (r.json as { workflow?: string }).workflow === "document_generation");
@@ -223,6 +266,17 @@ describe("createMondayWebhookRouter signing idempotency", () => {
 
   it("still returns duplicate for a concurrent second delivery while signing start is in-flight", async () => {
     const idempotency = new IdempotencyService(60_000);
+    let firstRememberKey: string | null = null;
+    let remembered!: () => void;
+    const rememberedGate = new Promise<void>((resolve) => {
+      remembered = resolve;
+    });
+    const origRemember = idempotency.remember.bind(idempotency);
+    vi.spyOn(idempotency, "remember").mockImplementation((key: string) => {
+      if (!firstRememberKey) firstRememberKey = key;
+      origRemember(key);
+      remembered();
+    });
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -235,10 +289,34 @@ describe("createMondayWebhookRouter signing idempotency", () => {
     });
 
     const body = signingPayload(3002, "Trimite Transportator", 2030349838);
-    const both = Promise.all([postMonday(app, body), postMonday(app, body)]);
-    await new Promise<void>((r) => setTimeout(r, 40));
-    release();
-    const [a, b] = await both;
+    const server = http.createServer(app);
+    const [a, b] = await new Promise<[Awaited<ReturnType<typeof postMondayToPort>>, Awaited<ReturnType<typeof postMondayToPort>>]>(
+      (resolve, reject) => {
+        server.listen(0, "127.0.0.1", async () => {
+          try {
+            const addr = server.address();
+            if (!addr || typeof addr === "string") {
+              throw new Error("no listen address");
+            }
+            const port = addr.port;
+            const first = postMondayToPort(port, body);
+            await rememberedGate; // Ensure first request remembered the key before starting the second
+            expect(firstRememberKey).toBe(idempotency.makeKey("3002", SIGN_TRIGGER_COLUMN, "Trimite Transportator"));
+            expect(idempotency.isDuplicate(firstRememberKey!)).toBe(true);
+            const second = postMondayToPort(port, body);
+            const secondResult = await second;
+            release();
+            const firstResult = await first;
+            const out = [firstResult, secondResult];
+            server.close();
+            resolve(out as [any, any]);
+          } catch (e) {
+            server.close();
+            reject(e);
+          }
+        });
+      }
+    );
 
     const skippedDup = [a, b].find((r) => (r.json as { skipped?: string }).skipped === "duplicate");
     const okSign = [a, b].find((r) => (r.json as { workflow?: string }).workflow === "signing_email");
