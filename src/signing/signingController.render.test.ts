@@ -23,8 +23,6 @@ describe("renderSignPage", () => {
     expect(html).toContain("scrollIntoView");
     expect(html).toContain("signatureCard");
     expect(html).toContain("preview.scrollTo");
-    expect(html).toContain("iframe.src");
-    expect(html).toContain("#page=999");
   });
 
   it("requires document review before enabling submit", () => {
@@ -41,11 +39,11 @@ describe("renderSignPage", () => {
   });
 
   it("includes robust iframe fallback when PDF.js fails", () => {
-    expect(html).toContain("function renderIframeFallback");
-    expect(html).toContain("createElement('iframe')");
-    expect(html).toContain("Advanced preview unavailable");
-    expect(html).toContain("setTimeout(() => {");
-    expect(html).toContain("script.onerror");
+    expect(html).toContain('type="module"');
+    expect(html).toContain('import * as pdfjsLib from "/sign/assets/pdfjs/pdf.mjs"');
+    expect(html).toContain('pdfjsLib.GlobalWorkerOptions.workerSrc = "/sign/assets/pdfjs/pdf.worker.mjs"');
+    expect(html).not.toContain("createElement('iframe')");
+    expect(html).not.toContain("cdnjs.cloudflare.com/ajax/libs/pdf.js");
   });
 
   it("includes reviewed status copy", () => {

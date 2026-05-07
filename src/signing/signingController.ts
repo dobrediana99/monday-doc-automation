@@ -74,6 +74,28 @@ export function createSigningRouter(params: {
 }): Router {
   const router = Router();
 
+  router.get("/assets/pdfjs/:file", async (req, res) => {
+    const file = req.params.file;
+    if (file !== "pdf.mjs" && file !== "pdf.worker.mjs") {
+      return res.status(404).send("Not found");
+    }
+    try {
+      const p1 = path.join(__dirname, "assets", "pdfjs", file);
+      const p2 = path.join(process.cwd(), "node_modules", "pdfjs-dist", "build", file);
+      let bytes: Buffer;
+      try {
+        bytes = await fs.readFile(p1);
+      } catch {
+        bytes = await fs.readFile(p2);
+      }
+      res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      return res.status(200).send(bytes);
+    } catch {
+      return res.status(404).send("Not found");
+    }
+  });
+
   router.get("/assets/logo-crystal.png", async (_req, res) => {
     try {
       const p = path.join(__dirname, "assets", "logo_crystal.png");
@@ -289,7 +311,7 @@ export function renderSignPage(token: string): string {
       .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
       @media (min-width: 900px) { .grid { grid-template-columns: 1.2fr 0.8fr; } }
       iframe { width: 100%; height: 70vh; border: 1px solid #e6e8ee; border-radius: 8px; background: #fff; }
-      canvas { width: 100%; height: 220px; border: 1px solid #cfd6e4; border-radius: 8px; touch-action: none; background: #fff; }
+      #sig { width: 100%; height: 220px; border: 1px solid #cfd6e4; border-radius: 8px; touch-action: none; background: #fff; }
       .row { margin-bottom: 10px; }
       button { padding: 10px 14px; border-radius: 8px; border: 1px solid #cfd6e4; background: #fff; cursor: pointer; }
       button.primary { background: #0b5fff; color: #fff; border-color: #0b5fff; }
@@ -301,7 +323,7 @@ export function renderSignPage(token: string): string {
       .notice.ok { border-color: #b7e2c1; background: #f1fbf3; color: #123018; }
       .disabledPad { opacity: 0.55; }
       .pdf-scroll-container { width: 100%; height: 70vh; overflow: auto; border: 1px solid #e6e8ee; border-radius: 8px; background: #fff; }
-      .pdf-page { display: block; margin: 12px auto; box-shadow: 0 1px 6px rgba(0,0,0,0.08); border-radius: 6px; }
+      .pdf-page { display: block; margin: 12px auto; max-width: 100%; height: auto; box-shadow: 0 1px 6px rgba(0,0,0,0.08); border-radius: 6px; }
       .pdf-loading { padding: 10px 12px; }
     </style>
   </head>
@@ -370,7 +392,9 @@ export function renderSignPage(token: string): string {
       </section>
     </main>
 
-    <script>
+    <script type="module">
+      import * as pdfjsLib from "/sign/assets/pdfjs/pdf.mjs";
+
       function bilingualStatus(el, ro, en) {
         el.textContent = ro + '\\n' + en;
       }
@@ -507,14 +531,9 @@ export function renderSignPage(token: string): string {
 
       document.getElementById('goToEnd').onclick = () => {
         const preview = document.getElementById('documentPreviewScroll');
-        const iframe = document.getElementById('documentPreview');
         const signatureCard = document.getElementById('signatureCard');
-        const documentUrl = '/sign/${encodedToken}/document';
         if (preview && preview.dataset && preview.dataset.mode === 'pdfjs' && preview.scrollTo) {
           preview.scrollTo({ top: preview.scrollHeight, behavior: 'smooth' });
-        } else if (iframe && iframe.tagName === 'IFRAME') {
-          const cacheBust = Date.now();
-          iframe.src = documentUrl + '?jump=end&t=' + cacheBust + '#page=999&zoom=page-width';
         }
         // Mark reviewed (button path). Manual scroll detection works only for PDF.js mode.
         markDocumentReviewed();
@@ -548,57 +567,23 @@ export function renderSignPage(token: string): string {
           }
         });
 
-        let finalized = false;
-        function finalizeOnce(fn) {
-          if (finalized) return;
-          finalized = true;
-          fn();
+        function renderPreviewError() {
+          preview.dataset.mode = 'error';
+          if (loadingEl) {
+            loadingEl.innerHTML =
+              'Previzualizarea nu este disponibilă în acest browser. Deschide documentul în tab nou și apasă butonul pentru a confirma parcurgerea.<br />' +
+              'EN: Preview unavailable in this browser. Open the document in a new tab and use the button to confirm review.';
+          }
         }
 
-        function renderIframeFallback(params) {
-          finalizeOnce(() => {
-            preview.dataset.mode = 'iframe';
-            // Replace loading text with a hint for the user.
-            if (loadingEl) {
-              loadingEl.innerHTML =
-                'Previzualizarea avansată nu este disponibilă. Folosește butonul pentru a confirma parcurgerea documentului.<br />' +
-                'EN: Advanced preview unavailable. Use the button to confirm document review.';
-            }
-            const iframe = document.createElement('iframe');
-            iframe.id = 'documentPreview';
-            iframe.src = url;
-            iframe.title = 'Previzualizare document / Document preview';
-            iframe.style.width = '100%';
-            iframe.style.height = '70vh';
-            iframe.style.border = '1px solid #e6e8ee';
-            iframe.style.borderRadius = '8px';
-            iframe.style.background = '#fff';
-            pagesEl.appendChild(iframe);
-          });
-        }
-
-        // Load PDF.js from CDN (no bundler in this project).
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js';
-        script.onerror = () => {
-          renderIframeFallback({ reason: 'cdn_error' });
-        };
-        script.onload = async () => {
+        (async () => {
           try {
-            if (!window.pdfjsLib) {
-              throw new Error('pdfjs_missing');
-            }
-            window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
-
-            const loadingTask = window.pdfjsLib.getDocument({ url });
+            pdfjsLib.GlobalWorkerOptions.workerSrc = "/sign/assets/pdfjs/pdf.worker.mjs";
+            const loadingTask = pdfjsLib.getDocument({ url });
             const pdf = await loadingTask.promise;
-            finalizeOnce(() => {
-              preview.dataset.mode = 'pdfjs';
-              if (loadingEl) loadingEl.remove();
-            });
+            preview.dataset.mode = 'pdfjs';
+            if (loadingEl) loadingEl.remove();
 
-            // Render all pages.
             for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
               const page = await pdf.getPage(pageNumber);
               const containerWidth = Math.max(320, preview.clientWidth - 24);
@@ -611,24 +596,13 @@ export function renderSignPage(token: string): string {
               const ctx2d = canvasEl.getContext('2d');
               canvasEl.width = Math.floor(viewport.width);
               canvasEl.height = Math.floor(viewport.height);
-              canvasEl.style.width = Math.floor(viewport.width) + 'px';
-              canvasEl.style.height = Math.floor(viewport.height) + 'px';
               pagesEl.appendChild(canvasEl);
-
               await page.render({ canvasContext: ctx2d, viewport }).promise;
             }
-          } catch (e) {
-            renderIframeFallback({ reason: 'pdfjs_render_failed' });
+          } catch {
+            renderPreviewError();
           }
-        };
-        document.head.appendChild(script);
-
-        // Safety net: never leave the UI stuck in "Loading..." forever.
-        setTimeout(() => {
-          if (!finalized) {
-            renderIframeFallback({ reason: 'timeout' });
-          }
-        }, 4000);
+        })();
       })();
 
       document.getElementById('submit').onclick = async () => {
