@@ -23,6 +23,8 @@ describe("renderSignPage", () => {
     expect(html).toContain("scrollIntoView");
     expect(html).toContain("signatureCard");
     expect(html).toContain("preview.scrollTo");
+    expect(html).toContain("iframe.src");
+    expect(html).toContain("#page=999");
   });
 
   it("requires document review before enabling submit", () => {
@@ -36,6 +38,14 @@ describe("renderSignPage", () => {
     expect(html).toContain("addEventListener('scroll'");
     expect(html).toContain("preview.scrollTop + preview.clientHeight >= preview.scrollHeight - threshold");
     expect(html).toContain("const threshold = 24");
+  });
+
+  it("includes robust iframe fallback when PDF.js fails", () => {
+    expect(html).toContain("function renderIframeFallback");
+    expect(html).toContain("createElement('iframe')");
+    expect(html).toContain("Advanced preview unavailable");
+    expect(html).toContain("setTimeout(() => {");
+    expect(html).toContain("script.onerror");
   });
 
   it("includes reviewed status copy", () => {

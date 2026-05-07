@@ -338,8 +338,8 @@ export function renderSignPage(token: string): string {
       <section class="card" id="signatureCard">
         <h3 style="margin: 0 0 10px 0;">Semnatura / Signature</h3>
         <div id="reviewNotice" class="row notice">
-          Pentru a semna, mergi mai întâi la finalul documentului.<br />
-          EN: To sign, go to the end of the document first.
+          Pentru a semna, parcurge documentul până la final.<br />
+          EN: To sign, review the document to the end.
         </div>
         <div class="row">
           <label>
@@ -424,8 +424,8 @@ export function renderSignPage(token: string): string {
           const status = document.getElementById('status');
           bilingualStatus(
             status,
-            'Pentru a semna, mergi mai întâi la finalul documentului.',
-            'To sign, go to the end of the document first.'
+            'Pentru a semna, parcurge documentul până la final.',
+            'To sign, review the document to the end.'
           );
           return;
         }
@@ -507,12 +507,17 @@ export function renderSignPage(token: string): string {
 
       document.getElementById('goToEnd').onclick = () => {
         const preview = document.getElementById('documentPreviewScroll');
+        const iframe = document.getElementById('documentPreview');
         const signatureCard = document.getElementById('signatureCard');
-        if (preview && preview.scrollTo) {
+        const documentUrl = '/sign/${encodedToken}/document';
+        if (preview && preview.dataset && preview.dataset.mode === 'pdfjs' && preview.scrollTo) {
           preview.scrollTo({ top: preview.scrollHeight, behavior: 'smooth' });
+        } else if (iframe && iframe.tagName === 'IFRAME') {
+          const cacheBust = Date.now();
+          iframe.src = documentUrl + '?jump=end&t=' + cacheBust + '#page=999&zoom=page-width';
         }
-        // Mark reviewed (button path) and still allow manual scroll detection separately.
-        setReviewed(true);
+        // Mark reviewed (button path). Manual scroll detection works only for PDF.js mode.
+        markDocumentReviewed();
         signatureCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
       };
 
@@ -534,15 +539,50 @@ export function renderSignPage(token: string): string {
 
         const threshold = 24;
         preview.addEventListener('scroll', () => {
+          if (preview.dataset.mode !== 'pdfjs') {
+            return;
+          }
           const reachedBottom = preview.scrollTop + preview.clientHeight >= preview.scrollHeight - threshold;
           if (reachedBottom) {
             markDocumentReviewed();
           }
         });
 
+        let finalized = false;
+        function finalizeOnce(fn) {
+          if (finalized) return;
+          finalized = true;
+          fn();
+        }
+
+        function renderIframeFallback(params) {
+          finalizeOnce(() => {
+            preview.dataset.mode = 'iframe';
+            // Replace loading text with a hint for the user.
+            if (loadingEl) {
+              loadingEl.innerHTML =
+                'Previzualizarea avansată nu este disponibilă. Folosește butonul pentru a confirma parcurgerea documentului.<br />' +
+                'EN: Advanced preview unavailable. Use the button to confirm document review.';
+            }
+            const iframe = document.createElement('iframe');
+            iframe.id = 'documentPreview';
+            iframe.src = url;
+            iframe.title = 'Previzualizare document / Document preview';
+            iframe.style.width = '100%';
+            iframe.style.height = '70vh';
+            iframe.style.border = '1px solid #e6e8ee';
+            iframe.style.borderRadius = '8px';
+            iframe.style.background = '#fff';
+            pagesEl.appendChild(iframe);
+          });
+        }
+
         // Load PDF.js from CDN (no bundler in this project).
         const script = document.createElement('script');
         script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js';
+        script.onerror = () => {
+          renderIframeFallback({ reason: 'cdn_error' });
+        };
         script.onload = async () => {
           try {
             if (!window.pdfjsLib) {
@@ -553,7 +593,10 @@ export function renderSignPage(token: string): string {
 
             const loadingTask = window.pdfjsLib.getDocument({ url });
             const pdf = await loadingTask.promise;
-            if (loadingEl) loadingEl.remove();
+            finalizeOnce(() => {
+              preview.dataset.mode = 'pdfjs';
+              if (loadingEl) loadingEl.remove();
+            });
 
             // Render all pages.
             for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
@@ -575,23 +618,17 @@ export function renderSignPage(token: string): string {
               await page.render({ canvasContext: ctx2d, viewport }).promise;
             }
           } catch (e) {
-            // Fallback: show iframe preview when PDF.js fails. Manual scroll detection isn't possible in this mode.
-            if (loadingEl) {
-              loadingEl.textContent = 'Previzualizarea avansată nu este disponibilă. / Advanced preview unavailable.';
-            }
-            const iframe = document.createElement('iframe');
-            iframe.id = 'documentPreview';
-            iframe.src = url;
-            iframe.title = 'Previzualizare document / Document preview';
-            iframe.style.width = '100%';
-            iframe.style.height = '70vh';
-            iframe.style.border = '1px solid #e6e8ee';
-            iframe.style.borderRadius = '8px';
-            iframe.style.background = '#fff';
-            pagesEl.appendChild(iframe);
+            renderIframeFallback({ reason: 'pdfjs_render_failed' });
           }
         };
         document.head.appendChild(script);
+
+        // Safety net: never leave the UI stuck in "Loading..." forever.
+        setTimeout(() => {
+          if (!finalized) {
+            renderIframeFallback({ reason: 'timeout' });
+          }
+        }, 4000);
       })();
 
       document.getElementById('submit').onclick = async () => {
