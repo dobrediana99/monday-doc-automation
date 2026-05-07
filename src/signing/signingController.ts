@@ -537,7 +537,7 @@ export function renderSignPage(token: string): string {
 
         if (!preview || !pagesEl) return;
 
-        const threshold = 24;
+        const threshold = 80;
         preview.addEventListener('scroll', () => {
           if (preview.dataset.mode !== 'pdfjs') {
             return;

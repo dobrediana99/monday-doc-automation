@@ -37,7 +37,7 @@ describe("renderSignPage", () => {
   it("detects manual scroll reaching bottom for review unlock", () => {
     expect(html).toContain("addEventListener('scroll'");
     expect(html).toContain("preview.scrollTop + preview.clientHeight >= preview.scrollHeight - threshold");
-    expect(html).toContain("const threshold = 24");
+    expect(html).toContain("const threshold = 80");
   });
 
   it("includes robust iframe fallback when PDF.js fails", () => {
