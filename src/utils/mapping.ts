@@ -36,6 +36,13 @@ export const PRINCIPAL_PEOPLE_COLUMN_ID = "deal_owner";
 /** Status column "Sursa Client" — used to conditionally include transporter contact note in supplier emails. */
 export const CLIENT_SOURCE_COLUMN_ID = "color_mktcvtpz";
 
+/** Text column "Data Incarcare" */
+export const LOADING_DATE_COLUMN_ID = "text_mksv7ywf";
+/** Dropdown column "Tara Incarcare" */
+export const LOADING_COUNTRY_COLUMN_ID = "dropdown_mktsr9n2";
+/** Dropdown column "Tara Descarcare" */
+export const UNLOADING_COUNTRY_COLUMN_ID = "dropdown_mktswwk3";
+
 export const SIGN_TRIGGER_COLUMN = "color_mm28cpwk";
 
 export const SIGN_ERROR_TEXT_COLUMN = "text_mm28m315";

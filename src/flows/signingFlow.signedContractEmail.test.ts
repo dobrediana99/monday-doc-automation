@@ -27,6 +27,9 @@ describe("SigningFlow signed-contract recipient email", () => {
         board: { id: "b1" },
         column_values: [
           { id: CLIENT_COUNTRY_COLUMN_ID, type: "lookup", text: "Germany", display_value: "Germany", value: null },
+          { id: "text_mksv7ywf", type: "text", text: "06.05.2026", display_value: "06.05.2026", value: null },
+          { id: "dropdown_mktsr9n2", type: "dropdown", text: "Romania", display_value: "Romania", value: null },
+          { id: "dropdown_mktswwk3", type: "dropdown", text: "Germania", display_value: "Germania", value: null },
           {
             id: EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
             type: "text",
@@ -100,7 +103,7 @@ describe("SigningFlow signed-contract recipient email", () => {
     expect(arg.to).toBe("client@example.com");
     expect(arg.from).toContain("acc.ch@crystal-logistics-services.com");
     expect(arg.attachmentFileName).toBe("Contract RO_signed.pdf");
-    expect(arg.subject).toBe("Signed document – CLS8766");
+    expect(arg.subject).toBe("Signed document – CLS8766 - 06.05.2026 - Romania → Germania");
     expect(arg.html).toContain("Please find attached the signed document");
     expect(arg.html).not.toMatch(/Vă transmitem|Bună ziua,/);
     expect(Buffer.compare(arg.pdfBytes, pdfBytes)).toBe(0);
@@ -115,6 +118,9 @@ describe("SigningFlow signed-contract recipient email", () => {
       board: { id: "b1" },
       column_values: [
         { id: SUPPLIER_HQ_COUNTRY_COLUMN_ID, type: "mirror", text: "Romania", display_value: "Romania", value: null },
+        { id: "text_mksv7ywf", type: "text", text: "06.05.2026", display_value: "06.05.2026", value: null },
+        { id: "dropdown_mktsr9n2", type: "dropdown", text: "Romania", display_value: "Romania", value: null },
+        { id: "dropdown_mktswwk3", type: "dropdown", text: "Germania", display_value: "Germania", value: null },
         { id: EMAIL_SUBJECT_ORDER_ID_COLUMN_ID, type: "text", text: "T-99", display_value: "T-99", value: null }
       ],
       assets: []
@@ -152,7 +158,7 @@ describe("SigningFlow signed-contract recipient email", () => {
     };
     expect(arg.to).toBe("furnizor@supplier.test");
     expect(arg.from).toContain("acc@crystal-logistics-services.com");
-    expect(arg.subject).toBe("Transmitere document semnat – T-99");
+    expect(arg.subject).toBe("Transmitere document semnat – T-99 - 06.05.2026 - Romania → Germania");
     expect(arg.html).toContain("Vă transmitem atașat documentul semnat");
     expect(arg.html).not.toContain("Please find attached");
   });

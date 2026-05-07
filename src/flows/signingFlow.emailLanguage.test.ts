@@ -27,6 +27,9 @@ function baseItem(params: {
   pulseId?: string;
   pulseIdValueJsonText?: string;
   itemName?: string;
+    loadingDate?: string;
+    loadingCountry?: string;
+    unloadingCountry?: string;
 }): MondayItem {
   const cols: MondayItem["column_values"] = [
     { id: "color_mkse8v90", text: "", value: null, type: "status" },
@@ -43,7 +46,10 @@ function baseItem(params: {
       text: params.pulseId ?? "",
       value: params.pulseIdValueJsonText ? JSON.stringify({ text: params.pulseIdValueJsonText }) : null,
       type: "text"
-    }
+      },
+      { id: "text_mksv7ywf", text: params.loadingDate ?? "06.05.2026", value: null, type: "text" },
+      { id: "dropdown_mktsr9n2", text: params.loadingCountry ?? "Romania", value: null, type: "dropdown" },
+      { id: "dropdown_mktswwk3", text: params.unloadingCountry ?? "Germania", value: null, type: "dropdown" }
   ];
   return {
     id: "1",
@@ -111,7 +117,7 @@ describe("SigningFlow email language from client country", () => {
       pdfAttachment?: { bytes: Buffer; fileName: string };
     };
     expect(arg.from).toContain("acc@crystal-logistics-services.com");
-    expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics - CLS8766");
+    expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics - CLS8766 - 06.05.2026 - Romania → Germania");
     expect(arg.html).toContain("48 de ore");
     expect(arg.html).toContain("https://svc.example/sign/");
     expect(arg.html).not.toContain("Signing link:");
@@ -136,7 +142,7 @@ describe("SigningFlow email language from client country", () => {
       pdfAttachment?: { bytes: Buffer; fileName: string };
     };
     expect(arg.from).toContain("acc.ch@crystal-logistics-services.com");
-    expect(arg.subject).toBe("Shipping Order Crystal Logistics - CLS8766");
+    expect(arg.subject).toBe("Shipping Order Crystal Logistics - CLS8766 - 06.05.2026 - Romania → Germania");
     expect(arg.html).toContain("48 hours");
     expect(arg.html).not.toContain("48 de ore");
     expect(arg.html).not.toContain("Link semnare:");
@@ -152,7 +158,7 @@ describe("SigningFlow email language from client country", () => {
     await flow.startSigning("1", "Trimite Client");
 
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string; html: string };
-    expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics - ONLY-NAME");
+    expect(arg.subject).toBe("Comanda de Expeditie Crystal Logistics - ONLY-NAME - 06.05.2026 - Romania → Germania");
     expect(arg.html).toContain("am atasat comanda de expeditie,");
   });
 
@@ -165,7 +171,7 @@ describe("SigningFlow email language from client country", () => {
     await flow.startSigning("1", "Trimite Client");
 
     const arg = (gmailService.sendEmail as ReturnType<typeof vi.fn>).mock.calls[0][0] as { subject: string; html: string };
-    expect(arg.subject).toBe("Shipping Order Crystal Logistics - CLS-01609");
+    expect(arg.subject).toBe("Shipping Order Crystal Logistics - CLS-01609 - 06.05.2026 - Romania → Germania");
     expect(arg.html).not.toContain("TEST_diana");
   });
 });

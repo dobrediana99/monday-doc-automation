@@ -13,6 +13,9 @@ import {
 import {
   CLIENT_COUNTRY_COLUMN_ID,
   CLIENT_SOURCE_COLUMN_ID,
+  LOADING_COUNTRY_COLUMN_ID,
+  LOADING_DATE_COLUMN_ID,
+  UNLOADING_COUNTRY_COLUMN_ID,
   SUPPLIER_HQ_COUNTRY_COLUMN_ID,
   EMAIL_SUBJECT_ORDER_ID_COLUMN_ID,
   ORDER_NUMBER_COLUMN_ID,
@@ -200,7 +203,10 @@ export class SigningFlow {
         flowType,
         orderNumber: signingOrderReference,
         signingUrl,
-        clientSource: columnTextById[CLIENT_SOURCE_COLUMN_ID] ?? ""
+        clientSource: columnTextById[CLIENT_SOURCE_COLUMN_ID] ?? "",
+        loadingDate: columnTextById[LOADING_DATE_COLUMN_ID] ?? "",
+        loadingCountry: columnTextById[LOADING_COUNTRY_COLUMN_ID] ?? "",
+        unloadingCountry: columnTextById[UNLOADING_COUNTRY_COLUMN_ID] ?? ""
       });
 
       const principalCc = await this.mondayClient.resolvePrincipalCcEmail(item);
@@ -280,9 +286,12 @@ export class SigningFlow {
       const attachmentFileName =
         session.finalSignedFileName ?? `${path.basename(session.sourcePdfName, ".pdf")}_signed.pdf`;
 
-      const delivery = buildSignedDocumentDeliveryEmail({
+      let delivery = buildSignedDocumentDeliveryEmail({
         language: session.signingEmailLanguage,
-        orderNumber: session.signingOrderReference
+        orderNumber: session.signingOrderReference,
+        loadingDate: null,
+        loadingCountry: null,
+        unloadingCountry: null
       });
 
       let cc: string[] | undefined;
@@ -292,10 +301,23 @@ export class SigningFlow {
         const principalCc = await this.mondayClient.resolvePrincipalCcEmail(itemForCc);
         cc = signingPrincipalCcAddresses(session.recipientEmail, principalCc?.email ?? null);
         const columnTextById = this.mondayClient.getColumnTextById(itemForCc);
+        const loadingDate = columnTextById[LOADING_DATE_COLUMN_ID] ?? "";
+        const loadingCountry = columnTextById[LOADING_COUNTRY_COLUMN_ID] ?? "";
+        const unloadingCountry = columnTextById[UNLOADING_COUNTRY_COLUMN_ID] ?? "";
         const clientCountryRaw = columnTextById[CLIENT_COUNTRY_COLUMN_ID] ?? "";
         const supplierHqCountryRaw = columnTextById[SUPPLIER_HQ_COUNTRY_COLUMN_ID] ?? "";
         const senderCountryRaw = session.flowType === "transportator" ? supplierHqCountryRaw : clientCountryRaw;
         from = getFromHeader(senderCountryRaw);
+
+        // Rebuild delivery subject with transport details if we can fetch them from Monday.
+        const rebuilt = buildSignedDocumentDeliveryEmail({
+          language: session.signingEmailLanguage,
+          orderNumber: session.signingOrderReference,
+          loadingDate,
+          loadingCountry,
+          unloadingCountry
+        });
+        delivery = rebuilt;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.warn(

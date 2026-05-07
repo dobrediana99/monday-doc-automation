@@ -26,6 +26,37 @@ function shouldIncludeTransportContactNote(clientSource?: string | null): boolea
   return !CLIENT_SOURCE_NO_CONTACT_NOTE.has(s);
 }
 
+function formatSubjectTransportSuffix(params: {
+  loadingDate?: string | null;
+  loadingCountry?: string | null;
+  unloadingCountry?: string | null;
+}): string {
+  const date = (params.loadingDate ?? "").trim();
+  const from = (params.loadingCountry ?? "").trim();
+  const to = (params.unloadingCountry ?? "").trim();
+
+  const parts: string[] = [];
+  if (date) {
+    parts.push(date);
+  }
+  if (from || to) {
+    if (from && to) {
+      parts.push(`${from} → ${to}`);
+    } else {
+      parts.push(from || to);
+    }
+  }
+  return parts.join(" - ");
+}
+
+function subjectWithOptionalTransportSuffix(
+  baseSubject: string,
+  details: { loadingDate?: string | null; loadingCountry?: string | null; unloadingCountry?: string | null }
+): string {
+  const suffix = formatSubjectTransportSuffix(details);
+  return suffix ? `${baseSubject} - ${suffix}` : baseSubject;
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -66,6 +97,9 @@ export function buildSignatureRequestEmail(params: {
   orderNumber: string;
   signingUrl: string;
   clientSource?: string | null;
+  loadingDate?: string | null;
+  loadingCountry?: string | null;
+  unloadingCountry?: string | null;
 }): { subject: string; html: string } {
   const safeUrl = escapeHtml(params.signingUrl);
   const safeOrderRef = escapeHtml(params.orderNumber);
@@ -88,11 +122,14 @@ ${includeContactNote ? `${TRANSPORT_ORGANIZATION_CONTACT_NOTE}\n\n` : ""}Atentie
 Furnizorii nu accepta descarcarea marfurilor din camioane dupa ce s-a primit acceptul soferului de incarcare iar casa de expeditie nu accepta noul pret impus avand deja marfa in camion. In cazul neatentionarii in scris si incarcarii fara acord, transportatorul isi asuma reducerea costului impus de catre casa de expeditie in cazul in care se incarca mai putina marfa si mentinerea pretului in cazul in care se incarca mai multa marfa.`;
 
       return {
-        subject: inviteSubjectWithOrderRef({
+        subject: subjectWithOptionalTransportSuffix(
+          inviteSubjectWithOrderRef({
           language: "ro",
           flowType: "transportator",
           orderReference: params.orderNumber
-        }),
+          }),
+          params
+        ),
         html: renderPlainTextEmailBody({ text: transporterRoBody })
       };
     }
@@ -103,11 +140,14 @@ Furnizorii nu accepta descarcarea marfurilor din camioane dupa ce s-a primit acc
           `;
 
     return {
-      subject: inviteSubjectWithOrderRef({
+      subject: subjectWithOptionalTransportSuffix(
+        inviteSubjectWithOrderRef({
         language: "ro",
         flowType: params.flowType,
         orderReference: params.orderNumber
-      }),
+        }),
+        params
+      ),
       html: emailWrapper(`
             <p>Buna ziua,</p>
             ${
@@ -155,11 +195,14 @@ Attention!
 Suppliers do not accept unloading of goods from trucks after the driver's loading acceptance has been received, and the forwarding company does not accept a newly imposed price once the goods are already loaded in the truck. If no written notice is given and loading takes place without agreement, the carrier accepts the reduced cost imposed by the forwarding company if less goods are loaded, and the original price remains unchanged if more goods are loaded.`;
 
     return {
-      subject: inviteSubjectWithOrderRef({
+      subject: subjectWithOptionalTransportSuffix(
+        inviteSubjectWithOrderRef({
         language: "en",
         flowType: "transportator",
         orderReference: params.orderNumber
-      }),
+        }),
+        params
+      ),
       html: renderPlainTextEmailBody({ text: transporterEnBody })
     };
   }
@@ -170,11 +213,14 @@ Suppliers do not accept unloading of goods from trucks after the driver's loadin
           `;
 
   return {
-    subject: inviteSubjectWithOrderRef({
+    subject: subjectWithOptionalTransportSuffix(
+      inviteSubjectWithOrderRef({
       language: "en",
       flowType: params.flowType,
       orderReference: params.orderNumber
-    }),
+      }),
+      params
+    ),
     html: emailWrapper(`
             <p>Hello,</p>
             <br />
@@ -213,10 +259,13 @@ Suppliers do not accept unloading of goods from trucks after the driver's loadin
 export function buildSignedDocumentDeliveryEmail(params: {
   language: SigningEmailLanguage;
   orderNumber: string;
+  loadingDate?: string | null;
+  loadingCountry?: string | null;
+  unloadingCountry?: string | null;
 }): { subject: string; html: string } {
   if (params.language === "ro") {
     return {
-      subject: `Transmitere document semnat – ${params.orderNumber}`,
+      subject: subjectWithOptionalTransportSuffix(`Transmitere document semnat – ${params.orderNumber}`, params),
       html: emailWrapper(`
             <p>Bună ziua,</p>
             <p>Vă transmitem atașat documentul semnat.</p>
@@ -227,7 +276,7 @@ export function buildSignedDocumentDeliveryEmail(params: {
   }
 
   return {
-    subject: `Signed document – ${params.orderNumber}`,
+    subject: subjectWithOptionalTransportSuffix(`Signed document – ${params.orderNumber}`, params),
     html: emailWrapper(`
             <p>Hello,</p>
             <p>Please find attached the signed document.</p>
