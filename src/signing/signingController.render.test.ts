@@ -25,6 +25,12 @@ describe("renderSignPage", () => {
     expect(html).toContain("signatureCard");
   });
 
+  it("requires document review before enabling submit", () => {
+    expect(html).toContain("let documentReviewed = false");
+    expect(html).toContain("consent && hasInk && nameOk && documentReviewed");
+    expect(html).toContain("Pentru a semna, mergi mai întâi la finalul documentului");
+  });
+
   it("includes bilingual signing success copy in the embedded script", () => {
     expect(html).toContain("Documentul a fost semnat cu succes.");
     expect(html).toContain("The document was signed successfully.");

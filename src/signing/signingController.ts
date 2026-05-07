@@ -297,6 +297,9 @@ export function renderSignPage(token: string): string {
       button:disabled { opacity: 0.6; cursor: not-allowed; }
       .muted { color: #556; font-size: 13px; }
       .status { margin-top: 10px; font-weight: 600; white-space: pre-line; }
+      .notice { border: 1px solid #ffe08a; background: #fff8dd; color: #3a2a00; padding: 10px 12px; border-radius: 8px; }
+      .notice.ok { border-color: #b7e2c1; background: #f1fbf3; color: #123018; }
+      .disabledPad { opacity: 0.55; }
     </style>
   </head>
   <body>
@@ -328,6 +331,10 @@ export function renderSignPage(token: string): string {
 
       <section class="card" id="signatureCard">
         <h3 style="margin: 0 0 10px 0;">Semnatura / Signature</h3>
+        <div id="reviewNotice" class="row notice">
+          Pentru a semna, mergi mai întâi la finalul documentului.<br />
+          EN: To sign, go to the end of the document first.
+        </div>
         <div class="row">
           <label>
             <input id="consent" type="checkbox" />
@@ -370,6 +377,7 @@ export function renderSignPage(token: string): string {
 
       let drawing = false;
       let hasInk = false;
+      let documentReviewed = false;
 
       function resizeCanvasPreserve() {
         const rect = canvas.getBoundingClientRect();
@@ -406,6 +414,15 @@ export function renderSignPage(token: string): string {
 
       function start(evt) {
         if (evt.pointerType === 'mouse' && evt.button !== 0) return;
+        if (!documentReviewed) {
+          const status = document.getElementById('status');
+          bilingualStatus(
+            status,
+            'Pentru a semna, mergi mai întâi la finalul documentului.',
+            'To sign, go to the end of the document first.'
+          );
+          return;
+        }
         drawing = true;
         canvas.setPointerCapture(evt.pointerId);
         const p = clientToCanvasPoint(evt);
@@ -453,7 +470,7 @@ export function renderSignPage(token: string): string {
       function updateSubmitState() {
         const consent = document.getElementById('consent').checked;
         const nameOk = fullNameTrimmed().length > 0;
-        document.getElementById('submit').disabled = !(consent && hasInk && nameOk);
+        document.getElementById('submit').disabled = !(consent && hasInk && nameOk && documentReviewed);
       }
 
       document.getElementById('consent').addEventListener('change', updateSubmitState);
@@ -466,23 +483,51 @@ export function renderSignPage(token: string): string {
         updateSubmitState();
       };
 
+      function setReviewed(value) {
+        documentReviewed = Boolean(value);
+        const notice = document.getElementById('reviewNotice');
+        if (notice) {
+          if (documentReviewed) {
+            notice.classList.add('ok');
+            notice.textContent = 'Document parcurs. Poți semna.\\nEN: Document reviewed. You can sign.';
+          } else {
+            notice.classList.remove('ok');
+            notice.innerHTML = 'Pentru a semna, mergi mai întâi la finalul documentului.<br />EN: To sign, go to the end of the document first.';
+          }
+        }
+        canvas.classList.toggle('disabledPad', !documentReviewed);
+        updateSubmitState();
+      }
+
       document.getElementById('goToEnd').onclick = () => {
         const iframe = document.getElementById('documentPreview');
         const signatureCard = document.getElementById('signatureCard');
         try {
           const base = '/sign/${encodedToken}/document';
-          iframe.src = base + '#page=999&zoom=page-width';
+          const cacheBust = Date.now();
+          iframe.src = base + '?jump=end&t=' + cacheBust + '#page=999&zoom=page-width';
         } catch {}
-        if (signatureCard && signatureCard.scrollIntoView) {
-          signatureCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        setReviewed(true);
+        signatureCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
       };
+
+      // Initial state: enforce review before signing.
+      setReviewed(false);
 
       document.getElementById('submit').onclick = async () => {
         const status = document.getElementById('status');
         const consent = document.getElementById('consent').checked;
         if (!consent) {
           bilingualStatus(status, ${JSON.stringify(SIGN_VALIDATION_CONSENT_RO)}, ${JSON.stringify(SIGN_VALIDATION_CONSENT_EN)});
+          return;
+        }
+
+        if (!documentReviewed) {
+          bilingualStatus(
+            status,
+            'Pentru a semna, mergi mai întâi la finalul documentului.',
+            'To sign, go to the end of the document first.'
+          );
           return;
         }
 
