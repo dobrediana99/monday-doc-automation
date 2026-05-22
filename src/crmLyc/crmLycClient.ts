@@ -95,6 +95,20 @@ function normalizeText(value: unknown): string {
 }
 
 function collectOptionCandidates(input: unknown, out: Array<{ id: string; label: string }>): void {
+  if (Array.isArray(input)) {
+    input.forEach((entry, index) => {
+      const record = asRecord(entry);
+      const label = normalizeText(
+        record?.label ?? record?.name ?? record?.text ?? record?.title ?? record?.display_value
+      );
+      if (label) {
+        out.push({ id: String(index), label });
+      }
+      collectOptionCandidates(entry, out);
+    });
+    return;
+  }
+
   const record = asRecord(input);
   if (!record) {
     return;
@@ -120,9 +134,7 @@ function collectOptionCandidates(input: unknown, out: Array<{ id: string; label:
 
   for (const value of Object.values(record)) {
     if (Array.isArray(value)) {
-      for (const entry of value) {
-        collectOptionCandidates(entry, out);
-      }
+      collectOptionCandidates(value, out);
       continue;
     }
     if (value && typeof value === "object") {
