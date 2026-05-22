@@ -231,6 +231,62 @@ describe("SigningFlow resend behavior for expired links", () => {
     expect(gmailService.sendEmail).toHaveBeenCalled();
   });
 
+  it("Completed with stale active session => ignores stale session and sends again", async () => {
+    const { mondayClient, gmailService, signingService, flow } = makeDeps();
+    await signingService.createSession({
+      itemId: "1",
+      boardId: "b1",
+      flowType: "client",
+      sourceFileColumnId: "file_mksefxnc",
+      sourceAssetId: "asset1",
+      sourcePdfName: "doc.pdf",
+      recipientEmail: "client@example.com",
+      emailSource: "primary",
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "Item"
+    });
+    const item = itemFixture({
+      itemId: "1",
+      boardId: "b1",
+      flowType: "client",
+      flowStatus: "Completed"
+    });
+    mondayClient.getItemById = vi.fn().mockResolvedValue(item);
+
+    await flow.startSigning("1", "Trimite Client");
+
+    expect(gmailService.sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("Declined with stale active session => ignores stale session and sends again", async () => {
+    const { mondayClient, gmailService, signingService, flow } = makeDeps();
+    await signingService.createSession({
+      itemId: "1",
+      boardId: "b1",
+      flowType: "client",
+      sourceFileColumnId: "file_mksefxnc",
+      sourceAssetId: "asset1",
+      sourcePdfName: "doc.pdf",
+      recipientEmail: "client@example.com",
+      emailSource: "primary",
+      recipientName: null,
+      signingEmailLanguage: "en",
+      signingOrderReference: "Item"
+    });
+    const item = itemFixture({
+      itemId: "1",
+      boardId: "b1",
+      flowType: "client",
+      flowStatus: "Declined by Email Semnare Client"
+    });
+    mondayClient.getItemById = vi.fn().mockResolvedValue(item);
+
+    await flow.startSigning("1", "Trimite Client");
+
+    expect(gmailService.sendEmail).toHaveBeenCalledTimes(1);
+  });
+
   it("second call with active session => skips duplicate send", async () => {
     const { mondayClient, gmailService, flow } = makeDeps();
     const item = itemFixture({
