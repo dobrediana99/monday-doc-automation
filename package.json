@@ -23,6 +23,7 @@
   "homepage": "https://github.com/dobrediana99/monday-doc-automation#readme",
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
+    "@supabase/supabase-js": "^2.106.1",
     "axios": "^1.13.6",
     "dayjs": "^1.11.20",
     "docxtemplater": "^3.68.3",

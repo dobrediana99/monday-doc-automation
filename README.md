@@ -293,6 +293,43 @@ If `WEBHOOK_SECRET` is set, pass it as header:
 
 ---
 
+## crm-lyc Webhook Adapter
+
+Optional endpoint for the crm-lyc CRM:
+
+- `POST https://<SERVICE_URL>/webhooks/crm-lyc`
+
+Required runtime variables to enable it:
+
+```bash
+CRM_LYC_WEBHOOK_SECRET=...
+DOC_AUTOMATION_API_KEY=...
+SUPABASE_URL=https://...
+SUPABASE_SERVICE_ROLE_KEY=...
+CRM_LYC_BASE_URL=https://crm-lyc.example
+```
+
+Incoming requests must include:
+
+```http
+Authorization: Bearer <CRM_LYC_WEBHOOK_SECRET>
+```
+
+The adapter verifies that the webhook came from the crm-lyc column with
+`config.crmKey = "transport_status"` and that the new status option label is
+`Semnat`. On match, it fetches item values and linked client/supplier companies
+from Supabase, maps crm-lyc `crmKey` values to the existing DOCX placeholders,
+generates:
+
+- `cmd_client_RO.docx` -> `Cmd. Client Nesemnata`
+- `cmd_furnizor_RO.docx` -> `Cmd. Furnizor Nesemnata`
+
+and uploads the generated PDFs back to crm-lyc with `mode=replace`.
+
+The Monday webhook and signing flows remain separate and unchanged.
+
+---
+
 ## Operational Notes
 
 - Uses `/tmp` only for intermediate docx/pdf files
