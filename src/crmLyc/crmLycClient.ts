@@ -1,6 +1,5 @@
 import axios from "axios";
 import FormData from "form-data";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { promises as fs } from "node:fs";
 import type { MondayColumnValue, MondayItem } from "../monday/mondayClient";
 
@@ -211,33 +210,24 @@ function mondayColumn(id: string, text: string): MondayColumnValue {
 }
 
 export class CrmLycClient {
-  private readonly supabase: SupabaseClient;
   private readonly columnsByBoard = new Map<string, CrmLycColumn[]>();
   private loggedValueShape = false;
+  private readonly supabaseUrl: string;
+  private readonly supabaseServiceRoleKey: string;
+  private readonly crmLycBaseUrl: string;
+  private readonly docAutomationApiKey: string;
 
-  constructor(
-    params: {
-      supabaseUrl: string;
-      supabaseServiceRoleKey: string;
-      crmLycBaseUrl: string;
-      docAutomationApiKey: string;
-    },
-    supabaseClient?: SupabaseClient
-  ) {
-    this.supabase =
-      supabaseClient ??
-      createClient(params.supabaseUrl, params.supabaseServiceRoleKey, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false
-        }
-      });
+  constructor(params: {
+    supabaseUrl: string;
+    supabaseServiceRoleKey: string;
+    crmLycBaseUrl: string;
+    docAutomationApiKey: string;
+  }) {
+    this.supabaseUrl = params.supabaseUrl.replace(/\/+$/, "");
+    this.supabaseServiceRoleKey = params.supabaseServiceRoleKey;
     this.crmLycBaseUrl = params.crmLycBaseUrl.replace(/\/+$/, "");
     this.docAutomationApiKey = params.docAutomationApiKey;
   }
-
-  private readonly crmLycBaseUrl: string;
-  private readonly docAutomationApiKey: string;
 
   async getBoardColumns(boardId: string): Promise<CrmLycColumn[]> {
     const cached = this.columnsByBoard.get(boardId);
@@ -245,17 +235,13 @@ export class CrmLycClient {
       return cached;
     }
 
-    const { data, error } = await this.supabase
-      .from("board_columns")
-      .select("id, name, type, config")
-      .eq("board_id", boardId)
-      .is("archived_at", null);
+    const data = await this.supabaseSelect<CrmLycColumn>("board_columns", {
+      select: "id,name,type,config",
+      board_id: `eq.${boardId}`,
+      archived_at: "is.null"
+    });
 
-    if (error) {
-      throw new Error(`crm-lyc Supabase board_columns fetch failed: ${error.message}`);
-    }
-
-    const columns = (data ?? []).map((column) => ({
+    const columns = data.map((column) => ({
       id: String(column.id),
       name: column.name ?? null,
       type: column.type ?? null,
@@ -295,20 +281,16 @@ export class CrmLycClient {
   }
 
   async getItemById(itemId: string, boardId = CRM_LYC_TRANSPORT_BOARD_ID): Promise<MondayItem> {
-    const [{ data: itemValues, error: itemValuesError }, columns] = await Promise.all([
-      this.supabase
-        .from("item_values")
-        .select("column_id, value")
-        .eq("item_id", itemId),
+    const [itemValues, columns] = await Promise.all([
+      this.supabaseSelect<CrmLycItemValue>("item_values", {
+        select: "column_id,value",
+        item_id: `eq.${itemId}`
+      }),
       this.getBoardColumns(boardId)
     ]);
 
-    if (itemValuesError) {
-      throw new Error(`crm-lyc Supabase item_values fetch failed: ${itemValuesError.message}`);
-    }
-
     const valueByColumnId = new Map<string, unknown>();
-    for (const value of (itemValues ?? []) as CrmLycItemValue[]) {
+    for (const value of itemValues) {
       valueByColumnId.set(String(value.column_id), value.value);
     }
 
@@ -396,16 +378,39 @@ export class CrmLycClient {
     if (!companyId) {
       return null;
     }
-    const { data, error } = await this.supabase
-      .from("companies")
-      .select("name, vat_number, address, email, phone")
-      .eq("id", companyId)
-      .maybeSingle();
+    const data = await this.supabaseSelect<CrmLycCompany>("companies", {
+      select: "name,vat_number,address,email,phone",
+      id: `eq.${companyId}`,
+      limit: "1"
+    });
+    return data[0] ?? null;
+  }
 
-    if (error) {
-      throw new Error(`crm-lyc Supabase company fetch failed: ${error.message}`);
+  private async supabaseSelect<T>(table: string, params: Record<string, string>): Promise<T[]> {
+    const response = await axios.get<T[]>(`${this.supabaseUrl}/rest/v1/${table}`, {
+      headers: {
+        apikey: this.supabaseServiceRoleKey,
+        Authorization: `Bearer ${this.supabaseServiceRoleKey}`,
+        Accept: "application/json"
+      },
+      params,
+      timeout: 20_000,
+      validateStatus: () => true
+    });
+
+    if (response.status < 200 || response.status >= 300) {
+      console.error(
+        JSON.stringify({
+          event: "crm_lyc_supabase_rest_failed",
+          table,
+          status: response.status,
+          responseBody: response.data
+        })
+      );
+      throw new Error(`crm-lyc Supabase REST fetch failed for ${table} with status ${response.status}`);
     }
-    return (data as CrmLycCompany | null) ?? null;
+
+    return Array.isArray(response.data) ? response.data : [];
   }
 
   private logValueShapeOnce(boardId: string, itemId: string, rawByKey: Record<string, unknown>): void {
