@@ -38,6 +38,18 @@ import {
 } from "../utils/mapping";
 import { maskToken } from "../signing/signingSessionStore";
 
+function isTerminalSigningFlowStatus(status: string): boolean {
+  const normalized = status.trim().toLowerCase();
+  return (
+    normalized === "completed" ||
+    normalized === "signed" ||
+    normalized === "semnat" ||
+    normalized === "refused" ||
+    normalized === "refuzat" ||
+    normalized.startsWith("declined by")
+  );
+}
+
 export class SigningFlow {
   private readonly signedContractEmailInFlight = new Set<string>();
 
@@ -118,7 +130,8 @@ export class SigningFlow {
         sourceAssetId: latest.assetId,
         recipientEmail: resolved.email
       });
-      if (existingSession) {
+      const forceFreshSession = isTerminalSigningFlowStatus(existingFlowStatus);
+      if (existingSession && !forceFreshSession) {
         console.info(
           JSON.stringify({
             event: "signing_start_skipped_active_existing_session",
@@ -129,6 +142,18 @@ export class SigningFlow {
           })
         );
         return;
+      }
+      if (existingSession && forceFreshSession) {
+        console.warn(
+          JSON.stringify({
+            event: "signing_active_session_ignored_after_terminal_status",
+            itemId,
+            boardId,
+            flowType,
+            previousFlowStatus: existingFlowStatus,
+            note: "creating_fresh_session"
+          })
+        );
       }
 
       console.info(
