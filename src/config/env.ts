@@ -32,7 +32,14 @@ const BaseEnvSchema = z.object({
   /** Optional: Redis connect timeout (ms). Helps fail-fast on Cloud Run startup. */
   SIGNING_REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
 
-  WEBHOOK_SECRET: z.string().optional()
+  WEBHOOK_SECRET: z.string().optional(),
+
+  /** Optional crm-lyc adapter configuration. If any value is set, all values are required. */
+  CRM_LYC_WEBHOOK_SECRET: z.string().min(1).optional(),
+  DOC_AUTOMATION_API_KEY: z.string().min(1).optional(),
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  CRM_LYC_BASE_URL: z.string().url().optional()
 });
 
 const EnvSchema = BaseEnvSchema.superRefine((data, ctx) => {
@@ -42,6 +49,26 @@ const EnvSchema = BaseEnvSchema.superRefine((data, ctx) => {
       path: ["SIGNING_REDIS_URL"],
       message: "Required in production for persistent signing links"
     });
+  }
+
+  const crmLycKeys = [
+    "CRM_LYC_WEBHOOK_SECRET",
+    "DOC_AUTOMATION_API_KEY",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "CRM_LYC_BASE_URL"
+  ] as const;
+  const hasAnyCrmLycValue = crmLycKeys.some((key) => Boolean(data[key]));
+  if (hasAnyCrmLycValue) {
+    for (const key of crmLycKeys) {
+      if (!data[key]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: "Required when crm-lyc adapter is configured"
+        });
+      }
+    }
   }
 });
 

@@ -13,6 +13,9 @@ import { RedisSigningSessionStore } from "./signing/redisSigningSessionStore";
 import { GmailService } from "./email/gmailService";
 import { SigningFlow } from "./flows/signingFlow";
 import { createMondayWebhookRouter } from "./webhooks/mondayWebhook";
+import { CrmLycClient } from "./crmLyc/crmLycClient";
+import { CrmLycDocumentGenerationFlow } from "./flows/crmLycDocumentGeneration";
+import { createCrmLycWebhookRouter } from "./webhooks/crmLycWebhook";
 import { IdempotencyService } from "./utils/idempotency";
 import { createSigningRouter } from "./signing/signingController";
 import { AuditService } from "./signing/auditService";
@@ -88,6 +91,39 @@ async function bootstrap(): Promise<void> {
 
   const signingFlow = new SigningFlow(mondayClient, signingService, gmailService, env.APP_BASE_URL);
   const idempotency = new IdempotencyService(env.IDEMPOTENCY_TTL_MINUTES * 60_000);
+
+  if (
+    env.CRM_LYC_WEBHOOK_SECRET &&
+    env.DOC_AUTOMATION_API_KEY &&
+    env.SUPABASE_URL &&
+    env.SUPABASE_SERVICE_ROLE_KEY &&
+    env.CRM_LYC_BASE_URL
+  ) {
+    const crmLycClient = new CrmLycClient({
+      supabaseUrl: env.SUPABASE_URL,
+      supabaseServiceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
+      crmLycBaseUrl: env.CRM_LYC_BASE_URL,
+      docAutomationApiKey: env.DOC_AUTOMATION_API_KEY
+    });
+    const crmLycDocumentFlow = new CrmLycDocumentGenerationFlow(
+      crmLycClient,
+      gcsService,
+      templateService,
+      pdfService
+    );
+
+    app.use(
+      "/webhooks",
+      createCrmLycWebhookRouter({
+        crmLycClient,
+        documentFlow: crmLycDocumentFlow,
+        idempotency,
+        webhookSecret: env.CRM_LYC_WEBHOOK_SECRET
+      })
+    );
+
+    logger.info("crm-lyc adapter enabled at POST /webhooks/crm-lyc");
+  }
 
   app.get("/health", (_req, res) => {
     res.status(200).json({ ok: true, service: "monday-doc-automation" });
