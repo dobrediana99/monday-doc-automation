@@ -182,7 +182,7 @@ function displayValueForColumnValue(value: unknown, column: CrmLycColumn): strin
     }
   }
 
-  for (const key of ["label", "name", "text", "title", "display_value"]) {
+  for (const key of ["label", "name", "text", "title", "display_value", "display"]) {
     const candidate = normalizeText(record[key]);
     if (candidate) {
       return candidate;
@@ -208,14 +208,18 @@ function displayValueForColumnValue(value: unknown, column: CrmLycColumn): strin
       .join(", ");
   }
 
-  // { number: N } — numeric columns, optionally formatted with prefix/padding from column config
+  // { number: N } — numeric columns, optionally formatted with prefix+padding (e.g. "CLS0001")
+  // Prefix is only applied when padding > 0; currency-prefix columns (padding absent/0) return the bare number
   const numVal = record.number;
   if (numVal !== undefined && numVal !== null) {
     const config = asRecord(column.config);
-    const prefix = typeof config?.prefix === "string" ? config.prefix : "";
     const padding = typeof config?.padding === "number" ? config.padding : 0;
     const numStr = normalizeText(numVal);
-    return prefix + (padding > 0 ? numStr.padStart(padding, "0") : numStr);
+    if (padding > 0) {
+      const prefix = typeof config?.prefix === "string" ? config.prefix : "";
+      return prefix + numStr.padStart(padding, "0");
+    }
+    return numStr;
   }
 
   return id;
