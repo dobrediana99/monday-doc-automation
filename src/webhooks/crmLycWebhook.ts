@@ -111,6 +111,7 @@ export function createCrmLycWebhookRouter(params: {
 
     try {
       await params.documentFlow.process({ boardId, itemId });
+      params.idempotency.forget(dedupeKey);
       return res.status(200).json({ ok: true, workflow: "crm_lyc_document_generation" });
     } catch (error) {
       params.idempotency.forget(dedupeKey);
