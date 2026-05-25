@@ -13,6 +13,9 @@ interface CrmLycWebhookPayload {
     boardId?: string;
     itemId?: string;
   };
+  vars?: {
+    template?: string;
+  };
   event?: {
     columnId?: string;
     record?: {
@@ -63,6 +66,7 @@ export function createCrmLycWebhookRouter(params: {
     const itemId = payload.automation?.itemId;
     const columnId = payload.event?.columnId;
     const value = payload.event?.record?.value;
+    const template = payload.vars?.template;
 
     if (!boardId || !itemId || !columnId) {
       return res.status(400).json({ error: "Invalid crm-lyc webhook payload" });
@@ -110,7 +114,7 @@ export function createCrmLycWebhookRouter(params: {
     params.idempotency.remember(dedupeKey);
 
     try {
-      await params.documentFlow.process({ boardId, itemId });
+      await params.documentFlow.process({ boardId, itemId, template });
       params.idempotency.forget(dedupeKey);
       return res.status(200).json({ ok: true, workflow: "crm_lyc_document_generation" });
     } catch (error) {

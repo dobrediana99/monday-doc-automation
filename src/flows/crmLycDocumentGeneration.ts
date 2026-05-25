@@ -7,6 +7,7 @@ import { buildGeneratedPdfFileName } from "../utils/generatedDocumentName";
 
 interface CrmLycDocumentDefinition {
   documentName: string;
+  template: string;
   selectedValue: "Client SRL" | "Trans. SRL";
   templateFile: string;
   uploadColumnId: string;
@@ -15,12 +16,14 @@ interface CrmLycDocumentDefinition {
 const CRM_LYC_DOCUMENTS: CrmLycDocumentDefinition[] = [
   {
     documentName: "cmd_client_RO",
+    template: "client",
     selectedValue: "Client SRL",
     templateFile: "cmd_client_RO.docx",
     uploadColumnId: "67c7e584-05ba-4188-9e58-8c3f05e53c36"
   },
   {
     documentName: "cmd_furnizor_RO",
+    template: "furnizor",
     selectedValue: "Trans. SRL",
     templateFile: "cmd_furnizor_RO.docx",
     uploadColumnId: "16782b95-dcd3-48f5-bc9b-e95475b04be3"
@@ -45,11 +48,15 @@ export class CrmLycDocumentGenerationFlow {
     private readonly pdfService: PdfService
   ) {}
 
-  async process(params: { boardId: string; itemId: string }): Promise<void> {
+  async process(params: { boardId: string; itemId: string; template?: string }): Promise<void> {
     const item = await this.crmLycClient.getItemById(params.itemId, params.boardId);
     const model = toModel(item);
 
-    for (const document of CRM_LYC_DOCUMENTS) {
+    const documents = params.template
+      ? CRM_LYC_DOCUMENTS.filter((d) => d.template === params.template)
+      : CRM_LYC_DOCUMENTS;
+
+    for (const document of documents) {
       const tmpFiles: string[] = [];
       try {
         const templatePath = await this.gcsService.downloadTemplateToTmp(document.templateFile);

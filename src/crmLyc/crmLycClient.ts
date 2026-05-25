@@ -196,6 +196,24 @@ function displayValueForColumnValue(value: unknown, column: CrmLycColumn): strin
     }
   }
 
+  // { values: [index, ...] } — dropdown / multi-select stored as option indices
+  const valuesArray = record.values;
+  if (Array.isArray(valuesArray) && valuesArray.length > 0) {
+    return valuesArray
+      .map((v) => {
+        const label = optionLabelForId(column.config, normalizeText(v));
+        return label ?? normalizeText(v);
+      })
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  // { number: N } — numeric columns
+  const numVal = record.number;
+  if (numVal !== undefined && numVal !== null) {
+    return normalizeText(numVal);
+  }
+
   return id;
 }
 
@@ -204,6 +222,10 @@ function linkedId(value: unknown): string | null {
     return value.trim();
   }
   const record = asRecord(value);
+  if (Array.isArray(record?.company_ids) && (record.company_ids as unknown[]).length > 0) {
+    const first = (record.company_ids as unknown[])[0];
+    return typeof first === "string" && first.trim() ? first.trim() : null;
+  }
   const id = normalizeText(record?.id);
   return id || null;
 }
