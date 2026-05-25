@@ -208,10 +208,14 @@ function displayValueForColumnValue(value: unknown, column: CrmLycColumn): strin
       .join(", ");
   }
 
-  // { number: N } — numeric columns
+  // { number: N } — numeric columns, optionally formatted with prefix/padding from column config
   const numVal = record.number;
   if (numVal !== undefined && numVal !== null) {
-    return normalizeText(numVal);
+    const config = asRecord(column.config);
+    const prefix = typeof config?.prefix === "string" ? config.prefix : "";
+    const padding = typeof config?.padding === "number" ? config.padding : 0;
+    const numStr = normalizeText(numVal);
+    return prefix + (padding > 0 ? numStr.padStart(padding, "0") : numStr);
   }
 
   return id;
