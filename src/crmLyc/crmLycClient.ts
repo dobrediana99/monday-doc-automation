@@ -3,6 +3,31 @@ import FormData from "form-data";
 import { promises as fs } from "node:fs";
 import type { MondayColumnValue, MondayItem } from "../monday/mondayClient";
 
+const COUNTRY_NAMES: Record<string, string> = {
+  AF:"Afghanistan",AL:"Albania",DZ:"Algeria",AD:"Andorra",AO:"Angola",AR:"Argentina",
+  AM:"Armenia",AU:"Australia",AT:"Austria",AZ:"Azerbaijan",BS:"Bahamas",BH:"Bahrain",
+  BD:"Bangladesh",BY:"Belarus",BE:"Belgium",BZ:"Belize",BJ:"Benin",BO:"Bolivia",
+  BA:"Bosnia-Herzegovina",BW:"Botswana",BR:"Brazil",BN:"Brunei Darussalam",BG:"Bulgaria",
+  KH:"Cambodia",CA:"Canada",CL:"Chile",CN:"China",CO:"Colombia",HR:"Croatia",CU:"Cuba",
+  CY:"Cyprus",CZ:"Czech Republic",DK:"Denmark",DO:"Dominican Republic",EG:"Egypt",
+  EE:"Estonia",ET:"Ethiopia",FI:"Finland",FR:"France",GE:"Georgia, Republic of",
+  DE:"Germany",GH:"Ghana",GR:"Greece",GT:"Guatemala",HN:"Honduras",HK:"Hong Kong",
+  HU:"Hungary",IS:"Iceland",IN:"India",ID:"Indonesia",IR:"Iran",IQ:"Iraq",IE:"Ireland",
+  IL:"Israel",IT:"Italy",JP:"Japan",JO:"Jordan",KZ:"Kazakhstan",KE:"Kenya",XK:"Kosovo",
+  KW:"Kuwait",LV:"Latvia",LB:"Lebanon",LY:"Libya",LI:"Liechtenstein",LT:"Lithuania",
+  LU:"Luxembourg",MY:"Malaysia",MT:"Malta",MX:"Mexico",MD:"Moldova",ME:"Montenegro",
+  MA:"Morocco",MZ:"Mozambique",NL:"Netherlands",NZ:"New Zealand",NG:"Nigeria",
+  MK:"North Macedonia",NO:"Norway",OM:"Oman",PK:"Pakistan",PA:"Panama",PY:"Paraguay",
+  PE:"Peru",PH:"Philippines",PL:"Poland",PT:"Portugal",QA:"Qatar",RO:"Romania",
+  RU:"Russia",RW:"Rwanda",SA:"Saudi Arabia",SN:"Senegal",RS:"Serbia",SG:"Singapore",
+  SK:"Slovakia",SI:"Slovenia",SO:"Somalia",ZA:"South Africa",ES:"Spain",LK:"Sri Lanka",
+  SD:"Sudan",SE:"Sweden",CH:"Switzerland",SY:"Syria",TW:"Taiwan",TJ:"Tajikistan",
+  TZ:"Tanzania",TH:"Thailand",TN:"Tunisia",TR:"Turkey",TM:"Turkmenistan",UG:"Uganda",
+  UA:"Ukraine",AE:"United Arab Emirates",GB:"United Kingdom",US:"USA",UY:"Uruguay",
+  UZ:"Uzbekistan",VA:"Vatican City",VE:"Venezuela",VN:"Vietnam",YE:"Yemen",ZM:"Zambia",
+  ZW:"Zimbabwe"
+};
+
 export const CRM_LYC_TRANSPORT_BOARD_ID = "89f5664d-43d0-4cff-964f-46d5279b7f68";
 export const CRM_LYC_TRANSPORT_STATUS_CRM_KEY = "transport_status";
 export const CRM_LYC_SIGNED_STATUS_LABEL = "Semnat";
@@ -187,6 +212,15 @@ function displayValueForColumnValue(value: unknown, column: CrmLycColumn): strin
     if (candidate) {
       return candidate;
     }
+  }
+
+  // { codes: ["RO"] } — country column
+  const codesArr = record.codes;
+  if (Array.isArray(codesArr) && codesArr.length > 0) {
+    return codesArr
+      .map((c) => COUNTRY_NAMES[normalizeText(c).toUpperCase()] ?? normalizeText(c))
+      .filter(Boolean)
+      .join(", ");
   }
 
   if (record.value !== undefined && record.value !== value) {
