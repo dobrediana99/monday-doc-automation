@@ -16,6 +16,11 @@ const UNSIGNED_COLUMN_CRM_KEY: Record<string, string> = {
   furnizor: "unsigned_supplier_order"
 };
 
+const SIGNED_COLUMN_CRM_KEY: Record<string, string> = {
+  client: "signed_client_order",
+  transportator: "signed_supplier_order"
+};
+
 const RECIPIENT_EMAIL_CRM_KEY: Record<string, string> = {
   client: "client_sign_email",
   furnizor: "supplier_sign_email"
@@ -45,11 +50,17 @@ export class CrmLycSigningFlow {
       throw new Error(`crm-lyc signing: unknown template "${template}"`);
     }
 
-    const [fileRef, textValues, unsignedColumnId] = await Promise.all([
+    const [fileRef, textValues, unsignedColumnId, assignedRaw] = await Promise.all([
       this.crmLycClient.getLatestFileFromColumn(itemId, boardId, unsignedCrmKey),
       this.crmLycClient.getItemTextValuesByCrmKey(itemId, boardId),
-      this.crmLycClient.getColumnIdByCrmKey(boardId, unsignedCrmKey)
+      this.crmLycClient.getColumnIdByCrmKey(boardId, unsignedCrmKey),
+      this.crmLycClient.getRawValueByCrmKey(itemId, boardId, "assigned")
     ]);
+
+    const assignedUserId = (assignedRaw as { user_id?: string } | null)?.user_id?.trim();
+    const principalEmail = assignedUserId
+      ? await this.crmLycClient.getUserEmail(assignedUserId).catch(() => null)
+      : null;
 
     if (!fileRef) {
       throw new Error(
@@ -123,11 +134,14 @@ export class CrmLycSigningFlow {
 
     const from = getFromHeader(clientCountry);
 
+    const cc = principalEmail && principalEmail !== recipientEmail ? [principalEmail] : undefined;
+
     await this.gmailService.sendEmail({
       to: recipientEmail,
       from,
       subject: invite.subject,
       html: invite.html,
+      cc,
       pdfAttachment: { bytes: unsignedPdfBytes, fileName: attachmentFileName }
     });
 
@@ -138,6 +152,7 @@ export class CrmLycSigningFlow {
         boardId,
         template,
         recipientEmail,
+        cc,
         token: maskToken(session.token)
       })
     );
@@ -167,9 +182,15 @@ export class CrmLycSigningFlow {
 
     const signedFileName = `${path.basename(session.sourcePdfName, ".pdf")}_signed.pdf`;
 
+    // Upload în coloana dedicată documentelor semnate (Cmd. Client / Cmd. Furnizor)
+    const signedCrmKey = SIGNED_COLUMN_CRM_KEY[session.flowType];
+    const signedColumnId = signedCrmKey
+      ? await this.crmLycClient.getColumnIdByCrmKey(session.boardId, signedCrmKey).catch(() => null)
+      : null;
+
     await this.crmLycClient.uploadFile(
       session.itemId,
-      session.sourceFileColumnId,
+      signedColumnId ?? session.sourceFileColumnId,
       params.signedPdfPath,
       signedFileName
     );
@@ -181,7 +202,7 @@ export class CrmLycSigningFlow {
       JSON.stringify({
         event: "crm_lyc_signed_document_uploaded",
         itemId: session.itemId,
-        columnId: session.sourceFileColumnId,
+        columnId: signedColumnId ?? session.sourceFileColumnId,
         fileName: signedFileName
       })
     );

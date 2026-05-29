@@ -471,6 +471,37 @@ export class CrmLycClient {
     return result;
   }
 
+  /** Returns the raw JSON value for a specific crmKey column on an item, or null. */
+  async getRawValueByCrmKey(itemId: string, boardId: string, crmKey: string): Promise<unknown> {
+    const col = await this.getColumnByCrmKey(boardId, crmKey);
+    if (!col) return null;
+    const data = await this.supabaseSelect<{ value: unknown }>("item_values", {
+      select: "value",
+      item_id: `eq.${itemId}`,
+      column_id: `eq.${col.id}`,
+      limit: "1"
+    });
+    return data[0]?.value ?? null;
+  }
+
+  /** Returns the email of a Supabase auth user by their UUID, or null. */
+  async getUserEmail(userId: string): Promise<string | null> {
+    if (!userId || !/^[0-9a-f-]{36}$/.test(userId)) return null;
+    const response = await axios.get<{ email?: string }>(
+      `${this.supabaseUrl}/auth/v1/admin/users/${userId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.supabaseServiceRoleKey}`,
+          apikey: this.supabaseServiceRoleKey
+        },
+        timeout: 10_000,
+        validateStatus: () => true
+      }
+    );
+    if (response.status !== 200) return null;
+    return response.data?.email ?? null;
+  }
+
   /** Downloads a file from Supabase Storage and returns its bytes. */
   async downloadFileFromStorage(bucket: string, storagePath: string): Promise<Buffer> {
     const url = `${this.supabaseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${storagePath}`;
