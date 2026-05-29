@@ -10,7 +10,7 @@ interface CrmLycDocumentDefinition {
   template: string;
   selectedValue: "Client SRL" | "Trans. SRL";
   templateFile: string;
-  uploadColumnId: string;
+  uploadColumnCrmKey: string;
 }
 
 const CRM_LYC_DOCUMENTS: CrmLycDocumentDefinition[] = [
@@ -19,14 +19,14 @@ const CRM_LYC_DOCUMENTS: CrmLycDocumentDefinition[] = [
     template: "client",
     selectedValue: "Client SRL",
     templateFile: "cmd_client_RO.docx",
-    uploadColumnId: "67c7e584-05ba-4188-9e58-8c3f05e53c36"
+    uploadColumnCrmKey: "unsigned_client_order"
   },
   {
     documentName: "cmd_furnizor_RO",
     template: "furnizor",
     selectedValue: "Trans. SRL",
     templateFile: "cmd_furnizor_RO.docx",
-    uploadColumnId: "16782b95-dcd3-48f5-bc9b-e95475b04be3"
+    uploadColumnCrmKey: "unsigned_supplier_order"
   }
 ];
 
@@ -57,6 +57,16 @@ export class CrmLycDocumentGenerationFlow {
       : CRM_LYC_DOCUMENTS;
 
     for (const document of documents) {
+      const uploadColumnId = await this.crmLycClient.getColumnIdByCrmKey(
+        params.boardId,
+        document.uploadColumnCrmKey
+      );
+      if (!uploadColumnId) {
+        throw new Error(
+          `crm-lyc document generation: coloana cu crmKey "${document.uploadColumnCrmKey}" nu există pe board ${params.boardId}`
+        );
+      }
+
       const tmpFiles: string[] = [];
       try {
         const templatePath = await this.gcsService.downloadTemplateToTmp(document.templateFile);
@@ -69,7 +79,7 @@ export class CrmLycDocumentGenerationFlow {
         tmpFiles.push(generatedPdf);
 
         const uploadName = buildGeneratedPdfFileName(document.selectedValue, item);
-        await this.crmLycClient.uploadFile(item.id, document.uploadColumnId, generatedPdf, uploadName);
+        await this.crmLycClient.uploadFile(item.id, uploadColumnId, generatedPdf, uploadName);
 
         console.info(
           JSON.stringify({
@@ -77,7 +87,7 @@ export class CrmLycDocumentGenerationFlow {
             boardId: params.boardId,
             itemId: params.itemId,
             documentName: document.documentName,
-            uploadColumnId: document.uploadColumnId,
+            uploadColumnId,
             fileName: uploadName
           })
         );
