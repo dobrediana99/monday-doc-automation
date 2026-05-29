@@ -182,7 +182,7 @@ function displayValueForColumnValue(value: unknown, column: CrmLycColumn): strin
     }
   }
 
-  for (const key of ["label", "name", "text", "title", "display_value", "display"]) {
+  for (const key of ["label", "name", "text", "title", "display_value", "display", "email", "phone"]) {
     const candidate = normalizeText(record[key]);
     if (candidate) {
       return candidate;
