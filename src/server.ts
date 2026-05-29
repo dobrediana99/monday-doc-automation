@@ -15,6 +15,7 @@ import { SigningFlow } from "./flows/signingFlow";
 import { createMondayWebhookRouter } from "./webhooks/mondayWebhook";
 import { CrmLycClient } from "./crmLyc/crmLycClient";
 import { CrmLycDocumentGenerationFlow } from "./flows/crmLycDocumentGeneration";
+import { CrmLycSigningFlow } from "./flows/crmLycSigningFlow";
 import { createCrmLycWebhookRouter } from "./webhooks/crmLycWebhook";
 import { IdempotencyService } from "./utils/idempotency";
 import { createSigningRouter } from "./signing/signingController";
@@ -92,6 +93,8 @@ async function bootstrap(): Promise<void> {
   const signingFlow = new SigningFlow(mondayClient, signingService, gmailService, env.APP_BASE_URL);
   const idempotency = new IdempotencyService(env.IDEMPOTENCY_TTL_MINUTES * 60_000);
 
+  let crmLycSigningFlowInstance: CrmLycSigningFlow | undefined;
+
   if (
     env.CRM_LYC_WEBHOOK_SECRET &&
     env.DOC_AUTOMATION_API_KEY &&
@@ -112,11 +115,20 @@ async function bootstrap(): Promise<void> {
       pdfService
     );
 
+    crmLycSigningFlowInstance = new CrmLycSigningFlow(
+      crmLycClient,
+      signingService,
+      pdfService,
+      gmailService,
+      env.APP_BASE_URL
+    );
+
     app.use(
       "/webhooks",
       createCrmLycWebhookRouter({
         crmLycClient,
         documentFlow: crmLycDocumentFlow,
+        signingFlow: crmLycSigningFlowInstance,
         idempotency,
         webhookSecret: env.CRM_LYC_WEBHOOK_SECRET
       })
@@ -145,7 +157,8 @@ async function bootstrap(): Promise<void> {
       signingService,
       auditService,
       pdfService,
-      signingFlow
+      signingFlow,
+      crmLycSigningFlow: crmLycSigningFlowInstance
     })
   );
 

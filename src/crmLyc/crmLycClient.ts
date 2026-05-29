@@ -385,6 +385,77 @@ export class CrmLycClient {
     };
   }
 
+  /** Returns { storagePath, name } for the latest file in a column identified by crmKey, or null. */
+  async getLatestFileFromColumn(
+    itemId: string,
+    boardId: string,
+    columnCrmKey: string
+  ): Promise<{ storagePath: string; name: string } | null> {
+    const column = await this.getColumnByCrmKey(boardId, columnCrmKey);
+    if (!column) return null;
+
+    const data = await this.supabaseSelect<{ value: unknown }>("item_values", {
+      select: "value",
+      item_id: `eq.${itemId}`,
+      column_id: `eq.${column.id}`,
+      limit: "1"
+    });
+    const val = data[0]?.value;
+    if (!val || typeof val !== "object") return null;
+    const files = (val as { files?: { path: string; name: string }[] }).files;
+    if (!Array.isArray(files) || files.length === 0) return null;
+    const last = files[files.length - 1];
+    return last?.path ? { storagePath: last.path, name: last.name ?? "document.pdf" } : null;
+  }
+
+  /** Returns the column UUID for a given crmKey on a board, or null. */
+  async getColumnIdByCrmKey(boardId: string, crmKey: string): Promise<string | null> {
+    const col = await this.getColumnByCrmKey(boardId, crmKey);
+    return col?.id ?? null;
+  }
+
+  /** Returns display-value dict keyed by crmKey for all columns that have a crmKey. */
+  async getItemTextValuesByCrmKey(itemId: string, boardId: string): Promise<Record<string, string>> {
+    const [itemValues, columns] = await Promise.all([
+      this.supabaseSelect<{ column_id: string; value: unknown }>("item_values", {
+        select: "column_id,value",
+        item_id: `eq.${itemId}`
+      }),
+      this.getBoardColumns(boardId)
+    ]);
+
+    const valueByColumnId = new Map<string, unknown>();
+    for (const iv of itemValues) valueByColumnId.set(String(iv.column_id), iv.value);
+
+    const result: Record<string, string> = {};
+    for (const col of columns) {
+      const crmKey = asRecord(col.config)?.crmKey;
+      if (typeof crmKey !== "string" || !crmKey.trim()) continue;
+      const raw = valueByColumnId.get(col.id);
+      result[crmKey] = displayValueForColumnValue(raw, col);
+    }
+    return result;
+  }
+
+  /** Downloads a file from Supabase Storage and returns its bytes. */
+  async downloadFileFromStorage(bucket: string, storagePath: string): Promise<Buffer> {
+    const url = `${this.supabaseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${storagePath}`;
+    const response = await axios.get<ArrayBuffer>(url, {
+      responseType: "arraybuffer",
+      headers: {
+        Authorization: `Bearer ${this.supabaseServiceRoleKey}`,
+        apikey: this.supabaseServiceRoleKey
+      },
+      timeout: 30_000,
+      validateStatus: () => true
+    });
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`crm-lyc storage download failed for ${storagePath}: HTTP ${response.status}`);
+    }
+    return Buffer.from(response.data);
+  }
+
   async uploadFile(itemId: string, columnId: string, filePath: string, fileName: string): Promise<void> {
     const fileBuffer = await fs.readFile(filePath);
     const form = new FormData();

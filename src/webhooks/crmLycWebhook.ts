@@ -6,6 +6,7 @@ import {
   type CrmLycClient
 } from "../crmLyc/crmLycClient";
 import type { CrmLycDocumentGenerationFlow } from "../flows/crmLycDocumentGeneration";
+import type { CrmLycSigningFlow } from "../flows/crmLycSigningFlow";
 import { IdempotencyService } from "../utils/idempotency";
 
 interface CrmLycWebhookPayload {
@@ -15,6 +16,9 @@ interface CrmLycWebhookPayload {
   };
   vars?: {
     template?: string;
+    /** "send_for_signing" triggers the CRM signing flow. Absent → document generation flow. */
+    action?: string;
+    recipientEmail?: string;
   };
   event?: {
     columnId?: string;
@@ -40,7 +44,6 @@ function timingSafeStringEqual(received: string | null, expected: string): boole
   const receivedBuffer = Buffer.from(received);
   const expectedBuffer = Buffer.from(expected);
   if (receivedBuffer.length !== expectedBuffer.length) {
-    // Keep a timing-safe operation in the mismatch path as well.
     crypto.timingSafeEqual(expectedBuffer, expectedBuffer);
     return false;
   }
@@ -50,6 +53,7 @@ function timingSafeStringEqual(received: string | null, expected: string): boole
 export function createCrmLycWebhookRouter(params: {
   crmLycClient: CrmLycClient;
   documentFlow: CrmLycDocumentGenerationFlow;
+  signingFlow: CrmLycSigningFlow;
   idempotency: IdempotencyService;
   webhookSecret: string;
 }): Router {
@@ -64,12 +68,48 @@ export function createCrmLycWebhookRouter(params: {
     const payload = req.body as CrmLycWebhookPayload;
     const boardId = payload.automation?.boardId;
     const itemId = payload.automation?.itemId;
+    const template = payload.vars?.template;
+    const action = payload.vars?.action;
+
+    if (!boardId || !itemId) {
+      return res.status(400).json({ error: "Invalid crm-lyc webhook payload: boardId and itemId required" });
+    }
+
+    // ── Signing flow ────────────────────────────────────────────────────────
+    if (action === "send_for_signing") {
+      if (!template) {
+        return res.status(400).json({ error: "vars.template required for send_for_signing action" });
+      }
+      try {
+        await params.signingFlow.startSigning({
+          itemId,
+          boardId,
+          template,
+          recipientEmail: payload.vars?.recipientEmail
+        });
+        return res.status(200).json({ ok: true, workflow: "crm_lyc_signing" });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "crm-lyc signing failed";
+        console.error(
+          JSON.stringify({
+            event: "crm_lyc_signing_error",
+            boardId,
+            itemId,
+            template,
+            message,
+            stack: error instanceof Error ? error.stack : undefined
+          })
+        );
+        return res.status(500).json({ error: message });
+      }
+    }
+
+    // ── Document generation flow (original) ────────────────────────────────
     const columnId = payload.event?.columnId;
     const value = payload.event?.record?.value;
-    const template = payload.vars?.template;
 
-    if (!boardId || !itemId || !columnId) {
-      return res.status(400).json({ error: "Invalid crm-lyc webhook payload" });
+    if (!columnId) {
+      return res.status(400).json({ error: "Invalid crm-lyc webhook payload: event.columnId required" });
     }
 
     let isSignedTransportStatus = false;

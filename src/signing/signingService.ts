@@ -14,6 +14,8 @@ import {
 export interface SigningSession {
   token: string;
   sessionId: string;
+  /** "crm_lyc" for sessions initiated from the CRM-LYC adapter; undefined for Monday.com sessions. */
+  source?: "crm_lyc";
   itemId: string;
   boardId: string;
   flowType: SigningFlowType;
@@ -56,6 +58,7 @@ export class SigningService {
   async createSession(input: {
     itemId: string;
     boardId: string;
+    source?: "crm_lyc";
     flowType: SigningFlowType;
     sourceFileColumnId: string;
     sourceAssetId: string;
@@ -73,6 +76,7 @@ export class SigningService {
     const session: SigningSession = {
       token,
       sessionId,
+      ...(input.source ? { source: input.source } : {}),
       itemId: input.itemId,
       boardId: input.boardId,
       flowType: input.flowType,

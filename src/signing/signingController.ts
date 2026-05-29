@@ -6,6 +6,7 @@ import { SigningService } from "./signingService";
 import { AuditService } from "./auditService";
 import { PdfService } from "../documents/pdfService";
 import { SigningFlow } from "../flows/signingFlow";
+import type { CrmLycSigningFlow } from "../flows/crmLycSigningFlow";
 import { maskToken } from "./signingSessionStore";
 
 /** User-visible bilingual validation (signing page + submit API). */
@@ -71,7 +72,14 @@ export function createSigningRouter(params: {
   auditService: AuditService;
   pdfService: PdfService;
   signingFlow: SigningFlow;
+  crmLycSigningFlow?: CrmLycSigningFlow;
 }): Router {
+  function resolveFlow(source?: "crm_lyc"): SigningFlow | CrmLycSigningFlow {
+    return source === "crm_lyc" && params.crmLycSigningFlow
+      ? params.crmLycSigningFlow
+      : params.signingFlow;
+  }
+
   const router = Router();
 
   router.get("/assets/pdfjs/:file", async (req, res) => {
@@ -124,7 +132,7 @@ export function createSigningRouter(params: {
         ip: getClientIp(req),
         userAgent: req.get("user-agent") || "unknown"
       });
-      await params.signingFlow.markViewedAndUpdateMonday({ token });
+      await resolveFlow(session.source).markViewedAndUpdateMonday({ token });
     } catch {
       // Even if Monday update fails, we still allow viewing the page (stateless UX).
     }
@@ -145,7 +153,7 @@ export function createSigningRouter(params: {
     }
 
     try {
-      const bytes = await params.signingFlow.getSourcePdfBytes(token);
+      const bytes = await resolveFlow(session.source).getSourcePdfBytes(token);
       if (!session.sourcePdfHashSha256) {
         const hash = params.pdfService.sha256Hex(bytes);
         params.signingService.setSourcePdfHash(token, hash);
@@ -194,8 +202,10 @@ export function createSigningRouter(params: {
       await params.signingService.markConsented(token);
 
       // Ensure we have a source hash bound into the audit trail before generating the signed PDF.
+      const flow = resolveFlow(session.source);
+
       if (!session.sourcePdfHashSha256) {
-        const sourceBytes = await params.signingFlow.getSourcePdfBytes(token);
+        const sourceBytes = await flow.getSourcePdfBytes(token);
         await params.signingService.setSourcePdfHash(token, params.pdfService.sha256Hex(sourceBytes));
       }
 
@@ -210,7 +220,7 @@ export function createSigningRouter(params: {
         signerFullName: parsed.data.signerFullName
       };
 
-      const sourceBytes = await params.signingFlow.getSourcePdfBytes(token);
+      const sourceBytes = await flow.getSourcePdfBytes(token);
       const signedPdfPath = await params.pdfService.generateSignedPdfFromBytes(
         sourceBytes,
         parsed.data.signaturePngBase64,
@@ -227,7 +237,7 @@ export function createSigningRouter(params: {
       });
 
       try {
-        await params.signingFlow.sendSignedContractRecipientEmailIfNeeded({
+        await flow.sendSignedContractRecipientEmailIfNeeded({
           token,
           signedPdfPath
         });
@@ -243,11 +253,11 @@ export function createSigningRouter(params: {
         );
       }
 
-      await params.signingFlow.finalizeSignedDocument({
+      await flow.finalizeSignedDocument({
         token,
         signedPdfPath
       });
-      await params.signingFlow.markSignedAndUpdateMonday({ token });
+      await flow.markSignedAndUpdateMonday({ token });
 
       return res.json({ ok: true, status: "signed" });
     } catch (error) {
@@ -279,7 +289,7 @@ export function createSigningRouter(params: {
         ip: getClientIp(req),
         userAgent: req.get("user-agent") || "unknown"
       });
-      await params.signingFlow.markRefusedAndUpdateMonday({ token });
+      await resolveFlow(session.source).markRefusedAndUpdateMonday({ token });
       return res.json({ ok: true, status: "refused" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to refuse";
