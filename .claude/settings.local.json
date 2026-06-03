@@ -6,7 +6,8 @@
       "Read(//c/Users/diana/OneDrive/Documente/crm_lyc/crm-lyc/crm-lyc/app/api/items/[itemId]/generate-doc/**)",
       "Read(//c/Users/diana/OneDrive/Documente/crm_lyc/crm-lyc/crm-lyc/app/api/items/[itemId]/file-column/**)",
       "Bash(cd \"c:\\\\Users\\\\diana\\\\OneDrive\\\\Documente\\\\crm_lyc\\\\crm-lyc\\\\crm-lyc\" && find . -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" -o -name \".env*\" -o -name \"*.json\" \\\\\\) | head -30)",
-      "Read(//c/Users/diana/OneDrive/Documente/crm_lyc/crm-lyc/crm-lyc/**)"
+      "Read(//c/Users/diana/OneDrive/Documente/crm_lyc/crm-lyc/crm-lyc/**)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\diana\\\\OneDrive\\\\Documente\\\\monday-doc-automation\" -Recurse -Force | Select-Object FullName | ForEach-Object { $_.FullName.Substring\\(\"c:\\\\Users\\\\diana\\\\OneDrive\\\\Documente\\\\monday-doc-automation\".Length\\).TrimStart\\('\\\\'\\) } | Sort-Object)"
     ]
   }
 }

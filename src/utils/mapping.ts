@@ -1,3 +1,13 @@
+// Board IDs and mirror column definitions for all CRM boards are in boardRelations.ts.
+// Imports below expose the Comenzi/Curse-specific constants used throughout this file.
+export {
+  BOARD_ID,
+  COMENZI_RELATIONS,
+  COMENZI_CLIENT_MIRROR_COLUMNS,
+  COMENZI_SUPPLIER_MIRROR_COLUMNS,
+  findMirrorDef,
+} from "./boardRelations";
+
 export const TEMPLATE_MAPPING: Record<string, string> = {
   "Client SRL": "cmd_client_RO.docx",
   "Client GmbH": "cmd_client_CH.docx",

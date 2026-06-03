@@ -50,6 +50,9 @@ interface CrmLycCompany {
   name: string | null;
   vat_number: string | null;
   address: string | null;
+  judet: string | null;
+  localitate: string | null;
+  country: string | null;
   email: string | null;
   phone: string | null;
 }
@@ -81,6 +84,9 @@ const CLIENT_PLACEHOLDER_MAPPING: Record<string, string> = {
   board_relation_mkpw4bcs: "clientCompany.name",
   lookup_mksha4n0: "clientCompany.vat_number",
   lookup_mksh4wrs: "clientCompany.address",
+  lookup_mkxwwsax: "clientCompany.judet",
+  lookup_mkxtmxv3: "clientCompany.localitate",
+  lookup_mkxttcky: "clientCompany.country",
   lookup_mkyqf8ke: "clientCompany.email",
   deal_value: "client_price",
   numeric_mksek8d2: "client_payment_days",
@@ -557,7 +563,7 @@ export class CrmLycClient {
       return null;
     }
     const data = await this.supabaseSelect<CrmLycCompany>("companies", {
-      select: "name,vat_number,address,email,phone",
+      select: "name,vat_number,address,judet,localitate,country,email,phone",
       id: `eq.${companyId}`,
       limit: "1"
     });
