@@ -292,6 +292,12 @@ function normalizeEmailCandidate(value: unknown): string | null {
 
 export type CrmLycSupplierEmailSource = "override" | "supplier_sign_email" | "mirror_supplier_email";
 
+export type CrmLycClientEmailSource =
+  | "override"
+  | "client_sign_email"
+  | "client_accounting_email"
+  | "mirror_client_email";
+
 function mondayColumn(id: string, text: string): MondayColumnValue {
   return {
     id,
@@ -498,6 +504,50 @@ export class CrmLycClient {
     const companyEmail = normalizeEmailCandidate(company?.email);
     if (companyEmail) {
       return { email: companyEmail, source: "mirror_supplier_email" };
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolves client signing recipient: Email Semnare Client first,
+   * then Email Contabilitate client, then Email Companie Client (mirror / linked company).
+   */
+  async resolveClientRecipientEmail(params: {
+    itemId: string;
+    boardId: string;
+    textValues: Record<string, string>;
+    overrideEmail?: string;
+  }): Promise<{
+    email: string;
+    source: CrmLycClientEmailSource;
+    emailSource: "primary" | "fallback";
+  } | null> {
+    const override = normalizeEmailCandidate(params.overrideEmail);
+    if (override) {
+      return { email: override, source: "override", emailSource: "primary" };
+    }
+
+    const signingEmail = normalizeEmailCandidate(params.textValues.client_sign_email);
+    if (signingEmail) {
+      return { email: signingEmail, source: "client_sign_email", emailSource: "primary" };
+    }
+
+    const accountingEmail = normalizeEmailCandidate(params.textValues.client_accounting_email);
+    if (accountingEmail) {
+      return { email: accountingEmail, source: "client_accounting_email", emailSource: "primary" };
+    }
+
+    const mirroredEmail = normalizeEmailCandidate(params.textValues.mirror_client_email);
+    if (mirroredEmail) {
+      return { email: mirroredEmail, source: "mirror_client_email", emailSource: "fallback" };
+    }
+
+    const clientCompanyRaw = await this.getRawValueByCrmKey(params.itemId, params.boardId, "company");
+    const company = await this.fetchCompany(linkedId(clientCompanyRaw));
+    const companyEmail = normalizeEmailCandidate(company?.email);
+    if (companyEmail) {
+      return { email: companyEmail, source: "mirror_client_email", emailSource: "fallback" };
     }
 
     return null;

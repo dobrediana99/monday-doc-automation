@@ -7,6 +7,7 @@ import type { PdfService } from "../documents/pdfService";
 import { buildSignatureRequestEmail, buildSignedDocumentDeliveryEmail } from "../email/signingEmailTemplates";
 import { getEmailLanguage } from "../email/signingEmailLocale";
 import { getFromHeader } from "../email/senderSelection";
+import type { ClientEmailSource } from "../utils/mapping";
 import { maskToken } from "../signing/signingSessionStore";
 
 const CRM_LYC_STORAGE_BUCKET = "board-files";
@@ -19,10 +20,6 @@ const UNSIGNED_COLUMN_CRM_KEY: Record<string, string> = {
 const SIGNED_COLUMN_CRM_KEY: Record<string, string> = {
   client: "signed_client_order",
   transportator: "signed_supplier_order"
-};
-
-const RECIPIENT_EMAIL_CRM_KEY: Record<string, string> = {
-  client: "client_sign_email"
 };
 
 export class CrmLycSigningFlow {
@@ -71,7 +68,8 @@ export class CrmLycSigningFlow {
     }
 
     let recipientEmail: string;
-    let supplierEmailSource: string | undefined;
+    let recipientEmailSource: string | undefined;
+    let sessionEmailSource: ClientEmailSource | "transportator" = "primary";
 
     if (template === "furnizor") {
       const resolved = await this.crmLycClient.resolveSupplierRecipientEmail({
@@ -86,7 +84,8 @@ export class CrmLycSigningFlow {
         );
       }
       recipientEmail = resolved.email;
-      supplierEmailSource = resolved.source;
+      recipientEmailSource = resolved.source;
+      sessionEmailSource = "transportator";
       console.info(
         JSON.stringify({
           event: "crm_lyc_supplier_recipient_email_resolved",
@@ -96,16 +95,28 @@ export class CrmLycSigningFlow {
         })
       );
     } else {
-      const recipientEmailCrmKey = RECIPIENT_EMAIL_CRM_KEY[template];
-      const resolvedEmail =
-        params.recipientEmail?.trim() ||
-        (recipientEmailCrmKey ? textValues[recipientEmailCrmKey]?.trim() : undefined);
-      if (!resolvedEmail) {
+      const resolved = await this.crmLycClient.resolveClientRecipientEmail({
+        itemId,
+        boardId,
+        textValues,
+        overrideEmail: params.recipientEmail
+      });
+      if (!resolved) {
         throw new Error(
-          `crm-lyc signing: email destinatar lipsa. Verifica coloana "${recipientEmailCrmKey}" pentru item ${itemId}`
+          `crm-lyc signing: nu există email valid pentru client. Verifică Email Semnare Client, Email Contabilitate client sau Email Companie Client pentru item ${itemId}`
         );
       }
-      recipientEmail = resolvedEmail;
+      recipientEmail = resolved.email;
+      recipientEmailSource = resolved.source;
+      sessionEmailSource = resolved.emailSource;
+      console.info(
+        JSON.stringify({
+          event: "crm_lyc_client_recipient_email_resolved",
+          itemId,
+          boardId,
+          emailSource: resolved.source
+        })
+      );
     }
 
     const orderRef =
@@ -126,7 +137,7 @@ export class CrmLycSigningFlow {
       sourceAssetId: fileRef.storagePath,
       sourcePdfName: fileRef.name,
       recipientEmail,
-      emailSource: template === "furnizor" ? "transportator" : "primary",
+      emailSource: sessionEmailSource,
       signingEmailLanguage,
       signingOrderReference: orderRef
     });
@@ -178,7 +189,7 @@ export class CrmLycSigningFlow {
         boardId,
         template,
         recipientEmail,
-        ...(supplierEmailSource ? { supplierEmailSource } : {}),
+        ...(recipientEmailSource ? { recipientEmailSource } : {}),
         cc,
         token: maskToken(session.token)
       })
