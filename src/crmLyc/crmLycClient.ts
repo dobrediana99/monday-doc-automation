@@ -277,6 +277,21 @@ function companyField(company: CrmLycCompany | null, field: keyof CrmLycCompany)
   return normalizeText(company?.[field] ?? "");
 }
 
+const SIMPLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeEmailCandidate(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const v = value.trim();
+  if (!v) {
+    return null;
+  }
+  return SIMPLE_EMAIL.test(v) ? v : null;
+}
+
+export type CrmLycSupplierEmailSource = "override" | "supplier_sign_email" | "mirror_supplier_email";
+
 function mondayColumn(id: string, text: string): MondayColumnValue {
   return {
     id,
@@ -447,6 +462,45 @@ export class CrmLycClient {
   async getColumnIdByCrmKey(boardId: string, crmKey: string): Promise<string | null> {
     const col = await this.getColumnByCrmKey(boardId, crmKey);
     return col?.id ?? null;
+  }
+
+  /**
+   * Resolves supplier signing recipient: Email Semnare Furnizor first,
+   * then Email Furnizor (mirror / linked company email).
+   */
+  async resolveSupplierRecipientEmail(params: {
+    itemId: string;
+    boardId: string;
+    textValues: Record<string, string>;
+    overrideEmail?: string;
+  }): Promise<{ email: string; source: CrmLycSupplierEmailSource } | null> {
+    const override = normalizeEmailCandidate(params.overrideEmail);
+    if (override) {
+      return { email: override, source: "override" };
+    }
+
+    const signingEmail = normalizeEmailCandidate(params.textValues.supplier_sign_email);
+    if (signingEmail) {
+      return { email: signingEmail, source: "supplier_sign_email" };
+    }
+
+    const mirroredEmail = normalizeEmailCandidate(params.textValues.mirror_supplier_email);
+    if (mirroredEmail) {
+      return { email: mirroredEmail, source: "mirror_supplier_email" };
+    }
+
+    const supplierCompanyRaw = await this.getRawValueByCrmKey(
+      params.itemId,
+      params.boardId,
+      "supplier_company"
+    );
+    const company = await this.fetchCompany(linkedId(supplierCompanyRaw));
+    const companyEmail = normalizeEmailCandidate(company?.email);
+    if (companyEmail) {
+      return { email: companyEmail, source: "mirror_supplier_email" };
+    }
+
+    return null;
   }
 
   /** Returns display-value dict keyed by crmKey for all columns that have a crmKey. */

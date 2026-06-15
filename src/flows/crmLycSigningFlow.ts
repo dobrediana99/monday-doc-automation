@@ -22,8 +22,7 @@ const SIGNED_COLUMN_CRM_KEY: Record<string, string> = {
 };
 
 const RECIPIENT_EMAIL_CRM_KEY: Record<string, string> = {
-  client: "client_sign_email",
-  furnizor: "supplier_sign_email"
+  client: "client_sign_email"
 };
 
 export class CrmLycSigningFlow {
@@ -71,15 +70,42 @@ export class CrmLycSigningFlow {
       throw new Error(`crm-lyc signing: coloana "${unsignedCrmKey}" nu exista pe board ${boardId}`);
     }
 
-    const recipientEmailCrmKey = RECIPIENT_EMAIL_CRM_KEY[template];
-    const recipientEmail =
-      params.recipientEmail?.trim() ||
-      (recipientEmailCrmKey ? textValues[recipientEmailCrmKey]?.trim() : undefined);
+    let recipientEmail: string;
+    let supplierEmailSource: string | undefined;
 
-    if (!recipientEmail) {
-      throw new Error(
-        `crm-lyc signing: email destinatar lipsa. Verifica coloana "${recipientEmailCrmKey}" pentru item ${itemId}`
+    if (template === "furnizor") {
+      const resolved = await this.crmLycClient.resolveSupplierRecipientEmail({
+        itemId,
+        boardId,
+        textValues,
+        overrideEmail: params.recipientEmail
+      });
+      if (!resolved) {
+        throw new Error(
+          `crm-lyc signing: nu există email valid pentru furnizor. Verifică Email Semnare Furnizor sau Email Furnizor pentru item ${itemId}`
+        );
+      }
+      recipientEmail = resolved.email;
+      supplierEmailSource = resolved.source;
+      console.info(
+        JSON.stringify({
+          event: "crm_lyc_supplier_recipient_email_resolved",
+          itemId,
+          boardId,
+          emailSource: resolved.source
+        })
       );
+    } else {
+      const recipientEmailCrmKey = RECIPIENT_EMAIL_CRM_KEY[template];
+      const resolvedEmail =
+        params.recipientEmail?.trim() ||
+        (recipientEmailCrmKey ? textValues[recipientEmailCrmKey]?.trim() : undefined);
+      if (!resolvedEmail) {
+        throw new Error(
+          `crm-lyc signing: email destinatar lipsa. Verifica coloana "${recipientEmailCrmKey}" pentru item ${itemId}`
+        );
+      }
+      recipientEmail = resolvedEmail;
     }
 
     const orderRef =
@@ -152,6 +178,7 @@ export class CrmLycSigningFlow {
         boardId,
         template,
         recipientEmail,
+        ...(supplierEmailSource ? { supplierEmailSource } : {}),
         cc,
         token: maskToken(session.token)
       })
