@@ -7,8 +7,10 @@ import type { PdfService } from "../documents/pdfService";
 import { buildSignatureRequestEmail, buildSignedDocumentDeliveryEmail } from "../email/signingEmailTemplates";
 import { getEmailLanguage } from "../email/signingEmailLocale";
 import { getFromHeader } from "../email/senderSelection";
+import { signingPrincipalCcAddresses } from "../email/signingEmailCc";
 import type { ClientEmailSource } from "../utils/mapping";
 import { maskToken } from "../signing/signingSessionStore";
+import { extractFirstAssignedUserId } from "../crmLyc/extractAssignedUserId";
 
 const CRM_LYC_STORAGE_BUCKET = "board-files";
 
@@ -53,10 +55,32 @@ export class CrmLycSigningFlow {
       this.crmLycClient.getRawValueByCrmKey(itemId, boardId, "assigned")
     ]);
 
-    const assignedUserId = (assignedRaw as { user_id?: string } | null)?.user_id?.trim();
-    const principalEmail = assignedUserId
-      ? await this.crmLycClient.getUserEmail(assignedUserId).catch(() => null)
-      : null;
+    const assignedUserId = extractFirstAssignedUserId(assignedRaw);
+    let principalEmail: string | null = null;
+    if (assignedUserId) {
+      principalEmail = await this.crmLycClient.getUserEmail(assignedUserId).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          JSON.stringify({
+            event: "crm_lyc_principal_cc_resolution_failed",
+            itemId,
+            boardId,
+            principalUserId: assignedUserId,
+            message: message.slice(0, 200)
+          })
+        );
+        return null;
+      });
+    } else if (assignedRaw != null) {
+      console.info(
+        JSON.stringify({
+          event: "crm_lyc_principal_cc_missing",
+          reason: "no_assigned_user_id",
+          itemId,
+          boardId
+        })
+      );
+    }
 
     if (!fileRef) {
       throw new Error(
@@ -171,7 +195,7 @@ export class CrmLycSigningFlow {
 
     const from = getFromHeader(clientCountry);
 
-    const cc = principalEmail && principalEmail !== recipientEmail ? [principalEmail] : undefined;
+    const cc = signingPrincipalCcAddresses(recipientEmail, principalEmail);
 
     await this.gmailService.sendEmail({
       to: recipientEmail,
@@ -191,6 +215,7 @@ export class CrmLycSigningFlow {
         recipientEmail,
         ...(recipientEmailSource ? { recipientEmailSource } : {}),
         cc,
+        principalCcApplied: Boolean(cc?.length),
         token: maskToken(session.token)
       })
     );
@@ -271,13 +296,30 @@ export class CrmLycSigningFlow {
 
       const from = getFromHeader(session.signingEmailLanguage === "ro" ? "Romania" : "CH");
 
+      let cc: string[] | undefined;
+      try {
+        const assignedRaw = await this.crmLycClient.getRawValueByCrmKey(
+          session.itemId,
+          session.boardId,
+          "assigned"
+        );
+        const assignedUserId = extractFirstAssignedUserId(assignedRaw);
+        const principalEmail = assignedUserId
+          ? await this.crmLycClient.getUserEmail(assignedUserId).catch(() => null)
+          : null;
+        cc = signingPrincipalCcAddresses(session.recipientEmail, principalEmail);
+      } catch {
+        // Email still sends to recipient without CC.
+      }
+
       await this.gmailService.sendEmailWithPdfAttachment({
         to: session.recipientEmail,
         from,
         subject: delivery.subject,
         html: delivery.html,
         pdfBytes,
-        attachmentFileName: path.basename(attachmentFileName)
+        attachmentFileName: path.basename(attachmentFileName),
+        cc
       });
 
       await this.signingService.markSignedContractEmailSent(params.token);
@@ -286,7 +328,8 @@ export class CrmLycSigningFlow {
         JSON.stringify({
           event: "crm_lyc_signed_contract_email_sent",
           itemId: session.itemId,
-          to: session.recipientEmail
+          to: session.recipientEmail,
+          principalCcApplied: Boolean(cc?.length)
         })
       );
     } finally {
