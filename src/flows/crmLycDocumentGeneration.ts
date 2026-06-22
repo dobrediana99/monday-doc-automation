@@ -4,39 +4,29 @@ import { TemplateService } from "../documents/templateService";
 import { PdfService } from "../documents/pdfService";
 import { buildNormalizedItemModel } from "../utils/mondayValues";
 import { buildGeneratedPdfFileName } from "../utils/generatedDocumentName";
+import { TEMPLATE_MAPPING, crmLycGenerationTrigger, normalizeCrmLycLegalForm } from "../utils/mapping";
+import { applyPaymentTermsToModel } from "../utils/paymentTermDisplay";
 
-interface CrmLycDocumentDefinition {
-  documentName: string;
-  template: string;
-  selectedValue: "Client SRL" | "Trans. SRL";
-  templateFile: string;
-  uploadColumnCrmKey: string;
-}
+const UPLOAD_COLUMN_BY_TEMPLATE: Record<string, string> = {
+  client: "unsigned_client_order",
+  furnizor: "unsigned_supplier_order"
+};
 
-const CRM_LYC_DOCUMENTS: CrmLycDocumentDefinition[] = [
-  {
-    documentName: "cmd_client_RO",
-    template: "client",
-    selectedValue: "Client SRL",
-    templateFile: "cmd_client_RO.docx",
-    uploadColumnCrmKey: "unsigned_client_order"
-  },
-  {
-    documentName: "cmd_furnizor_RO",
-    template: "furnizor",
-    selectedValue: "Trans. SRL",
-    templateFile: "cmd_furnizor_RO.docx",
-    uploadColumnCrmKey: "unsigned_supplier_order"
-  }
-];
-
-function toModel(item: Awaited<ReturnType<CrmLycClient["getItemById"]>>): Record<string, unknown> {
+function toModel(
+  item: Awaited<ReturnType<CrmLycClient["getItemById"]>>,
+  params: { template: string; legalForm: string }
+): Record<string, unknown> {
   const model = buildNormalizedItemModel(item);
   model.item_name = item.name;
   model.item_id = item.id;
   model.client_name = (model.board_relation_mkpw4bcs as string) || item.name;
   model.price = model.deal_value || "";
   model.loading_address = model.long_text_mkpx6q4a || "";
+
+  const legalForm = normalizeCrmLycLegalForm(params.legalForm);
+  // Furnizor templates use Plata la (Client) + Conditii de Plata Client placeholders.
+  applyPaymentTermsToModel({ model, legalForm, party: "client" });
+
   return model;
 }
 
@@ -48,28 +38,46 @@ export class CrmLycDocumentGenerationFlow {
     private readonly pdfService: PdfService
   ) {}
 
-  async process(params: { boardId: string; itemId: string; template?: string }): Promise<void> {
+  async process(params: {
+    boardId: string;
+    itemId: string;
+    template?: string;
+    legalForm?: string;
+  }): Promise<void> {
     const item = await this.crmLycClient.getItemById(params.itemId, params.boardId);
-    const model = toModel(item);
+    const legalForm = params.legalForm ?? "SRL";
 
-    const documents = params.template
-      ? CRM_LYC_DOCUMENTS.filter((d) => d.template === params.template)
-      : CRM_LYC_DOCUMENTS;
+    const templates = params.template ? [params.template] : Object.keys(UPLOAD_COLUMN_BY_TEMPLATE);
 
-    for (const document of documents) {
+    for (const template of templates) {
+      const selectedValue = crmLycGenerationTrigger(template, legalForm);
+      if (!selectedValue) {
+        throw new Error(`crm-lyc document generation: template necunoscut "${template}"`);
+      }
+
+      const model = toModel(item, { template, legalForm });
+
+      const templateFile = TEMPLATE_MAPPING[selectedValue];
+      if (!templateFile) {
+        throw new Error(
+          `crm-lyc document generation: fișier template lipsă pentru "${selectedValue}"`
+        );
+      }
+
+      const uploadColumnCrmKey = UPLOAD_COLUMN_BY_TEMPLATE[template];
       const uploadColumnId = await this.crmLycClient.getColumnIdByCrmKey(
         params.boardId,
-        document.uploadColumnCrmKey
+        uploadColumnCrmKey
       );
       if (!uploadColumnId) {
         throw new Error(
-          `crm-lyc document generation: coloana cu crmKey "${document.uploadColumnCrmKey}" nu există pe board ${params.boardId}`
+          `crm-lyc document generation: coloana cu crmKey "${uploadColumnCrmKey}" nu există pe board ${params.boardId}`
         );
       }
 
       const tmpFiles: string[] = [];
       try {
-        const templatePath = await this.gcsService.downloadTemplateToTmp(document.templateFile);
+        const templatePath = await this.gcsService.downloadTemplateToTmp(templateFile);
         tmpFiles.push(templatePath);
 
         const generatedDocx = await this.templateService.fillTemplate(templatePath, model);
@@ -78,7 +86,7 @@ export class CrmLycDocumentGenerationFlow {
         const generatedPdf = await this.pdfService.convertDocxToPdf(generatedDocx);
         tmpFiles.push(generatedPdf);
 
-        const uploadName = buildGeneratedPdfFileName(document.selectedValue, item);
+        const uploadName = buildGeneratedPdfFileName(selectedValue, item);
         await this.crmLycClient.uploadFile(item.id, uploadColumnId, generatedPdf, uploadName);
 
         console.info(
@@ -86,7 +94,8 @@ export class CrmLycDocumentGenerationFlow {
             event: "crm_lyc_document_generated",
             boardId: params.boardId,
             itemId: params.itemId,
-            documentName: document.documentName,
+            selectedValue,
+            templateFile,
             uploadColumnId,
             fileName: uploadName
           })

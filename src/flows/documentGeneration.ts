@@ -8,10 +8,12 @@ import {
   getUploadPdfColumn,
   legalFormLabelForTrigger,
   legalFormStatusColumnForTrigger,
+  parseGenerationTrigger,
   TEMPLATE_MAPPING
 } from "../utils/mapping";
 import { buildGeneratedPdfFileName } from "../utils/generatedDocumentName";
 import { buildNormalizedItemModel } from "../utils/mondayValues";
+import { applyPaymentTermsToModel } from "../utils/paymentTermDisplay";
 import {
   GENERATION_ERROR_TEXT_COLUMN,
   validateGenerationRequest
@@ -30,6 +32,12 @@ function toModel(item: MondayItem, selectedValue: string): Record<string, unknow
   const legalLabel = legalFormLabelForTrigger(selectedValue);
   if (legalColumnId && legalLabel) {
     model[legalColumnId] = legalLabel;
+  }
+
+  const parsed = parseGenerationTrigger(selectedValue);
+  if (parsed) {
+    // Supplier order templates still use client payment term placeholders.
+    applyPaymentTermsToModel({ model, legalForm: parsed.legalForm, party: "client" });
   }
 
   return model;

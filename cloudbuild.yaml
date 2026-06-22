@@ -4,11 +4,11 @@ options:
   dynamic_substitutions: true
 
 substitutions:
-  _SERVICE_NAME: monday-doc-automation
+  _SERVICE_NAME: crystal-signing
   _REGION: europe-west1
   _PLATFORM: managed
   _ALLOW_UNAUTHENTICATED: "true"
-  _APP_BASE_URL: https://monday-doc-automation-358252352531.europe-west1.run.app
+  _APP_BASE_URL: https://crystal-signing-358252352531.europe-west1.run.app
   _CPU: "1"
   _MEMORY: 512Mi
   _TIMEOUT: 300s

@@ -3,6 +3,7 @@ import http from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import type { CrmLycClient } from "../crmLyc/crmLycClient";
 import type { CrmLycDocumentGenerationFlow } from "../flows/crmLycDocumentGeneration";
+import type { CrmLycSigningFlow } from "../flows/crmLycSigningFlow";
 import { IdempotencyService } from "../utils/idempotency";
 import { createCrmLycWebhookRouter } from "./crmLycWebhook";
 
@@ -35,6 +36,7 @@ function makePayload() {
 function makeApp(params: {
   crmLycClient: Pick<CrmLycClient, "isStatusValueForCrmKey">;
   documentFlow: Pick<CrmLycDocumentGenerationFlow, "process">;
+  signingFlow?: Pick<CrmLycSigningFlow, "startSigning">;
   webhookSecret?: string;
 }) {
   const app = express();
@@ -44,6 +46,7 @@ function makeApp(params: {
     createCrmLycWebhookRouter({
       crmLycClient: params.crmLycClient as CrmLycClient,
       documentFlow: params.documentFlow as CrmLycDocumentGenerationFlow,
+      signingFlow: (params.signingFlow ?? { startSigning: vi.fn() }) as CrmLycSigningFlow,
       idempotency: new IdempotencyService(60_000),
       webhookSecret: params.webhookSecret ?? "secret"
     })
@@ -122,7 +125,64 @@ describe("createCrmLycWebhookRouter", () => {
     expect((result.json as { workflow?: string }).workflow).toBe("crm_lyc_document_generation");
     expect(process).toHaveBeenCalledWith({
       boardId: "89f5664d-43d0-4cff-964f-46d5279b7f68",
-      itemId: "7f8c389e-4e4a-4f7a-bf7f-bbbd6824b9ed"
+      itemId: "7f8c389e-4e4a-4f7a-bf7f-bbbd6824b9ed",
+      template: undefined,
+      legalForm: undefined
+    });
+  });
+
+  it("passes vars.legalForm and vars.template to document generation", async () => {
+    const process = vi.fn().mockResolvedValue(undefined);
+    const app = makeApp({
+      crmLycClient: { isStatusValueForCrmKey: vi.fn().mockResolvedValue(true) },
+      documentFlow: { process }
+    });
+
+    const payload = {
+      ...makePayload(),
+      vars: { template: "client", legalForm: "GmbH" }
+    };
+    const result = await postCrmLyc(app, payload);
+
+    expect(result.status).toBe(200);
+    expect(process).toHaveBeenCalledWith({
+      boardId: "89f5664d-43d0-4cff-964f-46d5279b7f68",
+      itemId: "7f8c389e-4e4a-4f7a-bf7f-bbbd6824b9ed",
+      template: "client",
+      legalForm: "GmbH"
+    });
+  });
+
+  it("passes legalForm to signing flow for send_for_signing", async () => {
+    const startSigning = vi.fn().mockResolvedValue(undefined);
+    const app = makeApp({
+      crmLycClient: { isStatusValueForCrmKey: vi.fn() },
+      documentFlow: { process: vi.fn() },
+      signingFlow: { startSigning }
+    });
+
+    const payload = {
+      automation: {
+        boardId: "89f5664d-43d0-4cff-964f-46d5279b7f68",
+        itemId: "7f8c389e-4e4a-4f7a-bf7f-bbbd6824b9ed"
+      },
+      vars: {
+        action: "send_for_signing",
+        template: "furnizor",
+        legalForm: "GmbH"
+      }
+    };
+
+    const result = await postCrmLyc(app, payload);
+
+    expect(result.status).toBe(200);
+    expect((result.json as { workflow?: string }).workflow).toBe("crm_lyc_signing");
+    expect(startSigning).toHaveBeenCalledWith({
+      boardId: "89f5664d-43d0-4cff-964f-46d5279b7f68",
+      itemId: "7f8c389e-4e4a-4f7a-bf7f-bbbd6824b9ed",
+      template: "furnizor",
+      legalForm: "GmbH",
+      recipientEmail: undefined
     });
   });
 });

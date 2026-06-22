@@ -5,10 +5,13 @@ import type { GmailService } from "../email/gmailService";
 import type { SigningService } from "../signing/signingService";
 import type { PdfService } from "../documents/pdfService";
 import { buildSignatureRequestEmail, buildSignedDocumentDeliveryEmail } from "../email/signingEmailTemplates";
-import { getEmailLanguage } from "../email/signingEmailLocale";
-import { getFromHeader } from "../email/senderSelection";
+import {
+  getFromHeaderForLegalForm,
+  signingEmailLanguageFromLegalForm
+} from "../email/senderSelection";
 import { signingPrincipalCcAddresses } from "../email/signingEmailCc";
 import type { ClientEmailSource } from "../utils/mapping";
+import { resolveCrmLycSigningLegalForm } from "../utils/mapping";
 import { maskToken } from "../signing/signingSessionStore";
 import { extractFirstAssignedUserId } from "../crmLyc/extractAssignedUserId";
 
@@ -40,6 +43,7 @@ export class CrmLycSigningFlow {
     boardId: string;
     template: string;
     recipientEmail?: string;
+    legalForm?: string;
   }): Promise<void> {
     const { itemId, boardId, template } = params;
 
@@ -148,8 +152,13 @@ export class CrmLycSigningFlow {
       (textValues["transport_status"] || "").trim() ||
       itemId;
 
-    const clientCountry = (textValues["origin_country"] || "").trim();
-    const signingEmailLanguage = getEmailLanguage(clientCountry);
+    const generationLegalForm = resolveCrmLycSigningLegalForm({
+      template,
+      legalForm: params.legalForm,
+      textValues,
+      sourcePdfName: fileRef.name
+    });
+    const signingEmailLanguage = signingEmailLanguageFromLegalForm(generationLegalForm);
     const flowType = template === "furnizor" ? "transportator" : "client";
 
     const session = await this.signingService.createSession({
@@ -163,7 +172,8 @@ export class CrmLycSigningFlow {
       recipientEmail,
       emailSource: sessionEmailSource,
       signingEmailLanguage,
-      signingOrderReference: orderRef
+      signingOrderReference: orderRef,
+      generationLegalForm
     });
 
     const signingUrl = `${this.appBaseUrl}/sign/${encodeURIComponent(session.token)}`;
@@ -193,7 +203,7 @@ export class CrmLycSigningFlow {
       unloadingCountry
     });
 
-    const from = getFromHeader(clientCountry);
+    const from = getFromHeaderForLegalForm(generationLegalForm);
 
     const cc = signingPrincipalCcAddresses(recipientEmail, principalEmail);
 
@@ -212,6 +222,7 @@ export class CrmLycSigningFlow {
         itemId,
         boardId,
         template,
+        generationLegalForm,
         recipientEmail,
         ...(recipientEmailSource ? { recipientEmailSource } : {}),
         cc,
@@ -294,7 +305,7 @@ export class CrmLycSigningFlow {
         unloadingCountry: null
       });
 
-      const from = getFromHeader(session.signingEmailLanguage === "ro" ? "Romania" : "CH");
+      const from = getFromHeaderForLegalForm(session.generationLegalForm ?? (session.signingEmailLanguage === "ro" ? "SRL" : "GmbH"));
 
       let cc: string[] | undefined;
       try {

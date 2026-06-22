@@ -100,6 +100,68 @@ export function legalFormLabelForTrigger(selectedValue: string): string | null {
   return parseGenerationTrigger(selectedValue)?.legalForm ?? null;
 }
 
+export type CrmLycDocTemplate = "client" | "furnizor";
+export type CrmLycLegalForm = Extract<GenerationLegalForm, "SRL" | "GmbH">;
+
+export function normalizeCrmLycLegalForm(value?: string | null): CrmLycLegalForm {
+  const n = (value ?? "").trim();
+  return n === "GmbH" ? "GmbH" : "SRL";
+}
+
+export function crmLycLegalFormPeCrmKey(template: string): "client_pe" | "furnizor_pe" | null {
+  if (template === "client") return "client_pe";
+  if (template === "furnizor") return "furnizor_pe";
+  return null;
+}
+
+/** Infers SRL/GmbH from generated PDF names like ctr_client_RO_... or ctr_furnizor_CH_... */
+export function inferLegalFormFromPdfFileName(fileName: string): CrmLycLegalForm | null {
+  const base = fileName.trim();
+  if (!base) return null;
+  if (/ctr_(?:client|furnizor)_CH_/i.test(base)) return "GmbH";
+  if (/ctr_(?:client|furnizor)_RO_/i.test(base)) return "SRL";
+  return null;
+}
+
+/** CRM-Lyc webhook: map template + legalForm to Monday-style generation trigger label. */
+export function crmLycGenerationTrigger(
+  template: string,
+  legalForm: string = "SRL"
+): string | null {
+  if (template === "client") {
+    return normalizeCrmLycLegalForm(legalForm) === "GmbH" ? "Client GmbH" : "Client SRL";
+  }
+  if (template === "furnizor") {
+    return normalizeCrmLycLegalForm(legalForm) === "GmbH" ? "Trans. GmbH" : "Trans. SRL";
+  }
+  return null;
+}
+
+export function resolveCrmLycSigningLegalForm(params: {
+  template: string;
+  legalForm?: string | null;
+  textValues: Record<string, string>;
+  sourcePdfName?: string | null;
+}): CrmLycLegalForm {
+  const explicit = (params.legalForm ?? "").trim();
+  if (explicit === "GmbH" || explicit === "SRL") {
+    return explicit;
+  }
+
+  const peKey = crmLycLegalFormPeCrmKey(params.template);
+  if (peKey) {
+    const pe = (params.textValues[peKey] ?? "").trim();
+    if (pe === "GmbH" || pe === "SRL") {
+      return pe;
+    }
+  }
+
+  const fromFile = inferLegalFormFromPdfFileName(params.sourcePdfName ?? "");
+  if (fromFile) return fromFile;
+
+  return "SRL";
+}
+
 export const GENERATION_ALLOWED_VALUES = new Set(Object.keys(TEMPLATE_MAPPING));
 
 export function parseSigningFlowType(selectedValue: string): SigningFlowType | null {

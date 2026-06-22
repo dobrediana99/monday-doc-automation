@@ -16,6 +16,8 @@ interface CrmLycWebhookPayload {
   };
   vars?: {
     template?: string;
+    /** SRL or GmbH — selects the docx template variant. Defaults to SRL. */
+    legalForm?: string;
     /** "send_for_signing" triggers the CRM signing flow. Absent → document generation flow. */
     action?: string;
     recipientEmail?: string;
@@ -69,6 +71,7 @@ export function createCrmLycWebhookRouter(params: {
     const boardId = payload.automation?.boardId;
     const itemId = payload.automation?.itemId;
     const template = payload.vars?.template;
+    const legalForm = payload.vars?.legalForm;
     const action = payload.vars?.action;
 
     if (!boardId || !itemId) {
@@ -85,7 +88,8 @@ export function createCrmLycWebhookRouter(params: {
           itemId,
           boardId,
           template,
-          recipientEmail: payload.vars?.recipientEmail
+          recipientEmail: payload.vars?.recipientEmail,
+          legalForm: payload.vars?.legalForm
         });
         return res.status(200).json({ ok: true, workflow: "crm_lyc_signing" });
       } catch (error) {
@@ -154,7 +158,7 @@ export function createCrmLycWebhookRouter(params: {
     params.idempotency.remember(dedupeKey);
 
     try {
-      await params.documentFlow.process({ boardId, itemId, template });
+      await params.documentFlow.process({ boardId, itemId, template, legalForm });
       params.idempotency.forget(dedupeKey);
       return res.status(200).json({ ok: true, workflow: "crm_lyc_document_generation" });
     } catch (error) {

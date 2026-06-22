@@ -29,6 +29,8 @@ export interface SigningSession {
   signingEmailLanguage: SigningEmailLanguage;
   /** Order / transport identifier used in email subjects (from Monday column `pulse_id_mks1dcwz`, with fallback). */
   signingOrderReference: string;
+  /** CRM-Lyc entity used for sender mailbox + email language (SRL vs GmbH). */
+  generationLegalForm?: "SRL" | "GmbH";
   createdAt: number;
   expiresAt: number;
   status: "active" | "signed" | "refused";
@@ -68,6 +70,7 @@ export class SigningService {
     recipientName?: string | null;
     signingEmailLanguage: SigningEmailLanguage;
     signingOrderReference: string;
+    generationLegalForm?: "SRL" | "GmbH";
   }): Promise<SigningSession> {
     const sessionId = crypto.randomUUID();
     const token = generateSigningToken(sessionId);
@@ -88,6 +91,7 @@ export class SigningService {
       recipientName: input.recipientName ?? null,
       signingEmailLanguage: input.signingEmailLanguage,
       signingOrderReference: input.signingOrderReference,
+      ...(input.generationLegalForm ? { generationLegalForm: input.generationLegalForm } : {}),
       createdAt: now,
       expiresAt: now + this.ttlMs,
       status: "active"
