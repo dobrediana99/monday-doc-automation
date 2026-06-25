@@ -4,9 +4,11 @@ import {
   SUPPLIER_LEGAL_FORM_COLUMN_ID,
   TEMPLATE_MAPPING,
   crmLycGenerationTrigger,
+  crmLycSigningMailboxLegalForm,
   inferLegalFormFromPdfFileName,
   legalFormLabelForTrigger,
   legalFormStatusColumnForTrigger,
+  resolveCrmLycLegalFormFromPeColumn,
   resolveCrmLycSigningLegalForm
 } from "./mapping";
 
@@ -62,9 +64,14 @@ describe("crmLycGenerationTrigger", () => {
     expect(TEMPLATE_MAPPING["Trans. GmbH"]).toBe("cmd_furnizor_CH.docx");
   });
 
-  it("defaults to SRL when legalForm omitted", () => {
-    expect(crmLycGenerationTrigger("client")).toBe("Client SRL");
-    expect(crmLycGenerationTrigger("furnizor")).toBe("Trans. SRL");
+  it("client + EOOD => Client EOOD", () => {
+    expect(crmLycGenerationTrigger("client", "EOOD")).toBe("Client EOOD");
+    expect(TEMPLATE_MAPPING["Client EOOD"]).toBe("cmd_client_EOOD.docx");
+  });
+
+  it("furnizor + EOOD => Trans. EOOD", () => {
+    expect(crmLycGenerationTrigger("furnizor", "EOOD")).toBe("Trans. EOOD");
+    expect(TEMPLATE_MAPPING["Trans. EOOD"]).toBe("cmd_furnizor_EOOD.docx");
   });
 
   it("unknown template => null", () => {
@@ -72,46 +79,72 @@ describe("crmLycGenerationTrigger", () => {
   });
 });
 
+describe("resolveCrmLycLegalFormFromPeColumn", () => {
+  it("reads Client pe for client template", () => {
+    expect(
+      resolveCrmLycLegalFormFromPeColumn({
+        template: "client",
+        textValues: { client_pe: "GmbH" }
+      })
+    ).toBe("GmbH");
+  });
+
+  it("reads Furnizor pe for furnizor template", () => {
+    expect(
+      resolveCrmLycLegalFormFromPeColumn({
+        template: "furnizor",
+        textValues: { furnizor_pe: "EOOD" }
+      })
+    ).toBe("EOOD");
+  });
+
+  it("throws when column is empty or Alege!", () => {
+    expect(() =>
+      resolveCrmLycLegalFormFromPeColumn({ template: "client", textValues: {} })
+    ).toThrow(/Client pe/);
+    expect(() =>
+      resolveCrmLycLegalFormFromPeColumn({
+        template: "furnizor",
+        textValues: { furnizor_pe: "Alege!" }
+      })
+    ).toThrow(/Furnizor pe/);
+  });
+
+  it("throws on invalid value", () => {
+    expect(() =>
+      resolveCrmLycLegalFormFromPeColumn({
+        template: "client",
+        textValues: { client_pe: "SA" }
+      })
+    ).toThrow(/invalidă/i);
+  });
+});
+
 describe("resolveCrmLycSigningLegalForm", () => {
-  it("prefers explicit legalForm from webhook", () => {
-    expect(
-      resolveCrmLycSigningLegalForm({
-        template: "furnizor",
-        legalForm: "GmbH",
-        textValues: { furnizor_pe: "SRL" },
-        sourcePdfName: "ctr_furnizor_RO_x.pdf"
-      })
-    ).toBe("GmbH");
-  });
-
-  it("uses Client pe / Furnizor pe column when webhook omits legalForm", () => {
+  it("uses Client pe / Furnizor pe column", () => {
     expect(
       resolveCrmLycSigningLegalForm({
         template: "client",
-        textValues: { client_pe: "GmbH" },
-        sourcePdfName: "ctr_client_RO_x.pdf"
+        textValues: { client_pe: "GmbH" }
       })
     ).toBe("GmbH");
-  });
-
-  it("infers from PDF filename when column is empty", () => {
     expect(
       resolveCrmLycSigningLegalForm({
         template: "furnizor",
-        textValues: {},
-        sourcePdfName: "ctr_furnizor_CH_CLS03449_22-06-2026.pdf"
-      })
-    ).toBe("GmbH");
-  });
-
-  it("defaults to SRL", () => {
-    expect(
-      resolveCrmLycSigningLegalForm({
-        template: "client",
-        textValues: {},
-        sourcePdfName: "Comanda.pdf"
+        textValues: { furnizor_pe: "SRL" }
       })
     ).toBe("SRL");
+  });
+});
+
+describe("crmLycSigningMailboxLegalForm", () => {
+  it("maps SRL and EOOD to RO mailbox selector", () => {
+    expect(crmLycSigningMailboxLegalForm("SRL")).toBe("SRL");
+    expect(crmLycSigningMailboxLegalForm("EOOD")).toBe("SRL");
+  });
+
+  it("maps GmbH to CH mailbox selector", () => {
+    expect(crmLycSigningMailboxLegalForm("GmbH")).toBe("GmbH");
   });
 });
 

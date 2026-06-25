@@ -108,10 +108,47 @@ export function normalizeCrmLycLegalForm(value?: string | null): CrmLycLegalForm
   return n === "GmbH" ? "GmbH" : "SRL";
 }
 
+const CRM_LYC_PE_PLACEHOLDERS = new Set(["", "Alege!", "Alege"]);
+
 export function crmLycLegalFormPeCrmKey(template: string): "client_pe" | "furnizor_pe" | null {
   if (template === "client") return "client_pe";
   if (template === "furnizor") return "furnizor_pe";
   return null;
+}
+
+export function crmLycLegalFormPeColumnLabel(peKey: "client_pe" | "furnizor_pe"): string {
+  return peKey === "client_pe" ? "Client pe" : "Furnizor pe";
+}
+
+/** CRM-Lyc: legal entity from board column Client pe / Furnizor pe (not webhook picker). */
+export function resolveCrmLycLegalFormFromPeColumn(params: {
+  template: string;
+  textValues: Record<string, string>;
+}): GenerationLegalForm {
+  const peKey = crmLycLegalFormPeCrmKey(params.template);
+  if (!peKey) {
+    throw new Error(`crm-lyc: template necunoscut "${params.template}"`);
+  }
+
+  const columnLabel = crmLycLegalFormPeColumnLabel(peKey);
+  const raw = (params.textValues[peKey] ?? "").trim();
+  if (CRM_LYC_PE_PLACEHOLDERS.has(raw)) {
+    throw new Error(
+      `crm-lyc: completează coloana "${columnLabel}" pe item (valoare lipsă sau „Alege!”)`
+    );
+  }
+  if (raw === "SRL" || raw === "GmbH" || raw === "EOOD") {
+    return raw;
+  }
+
+  throw new Error(
+    `crm-lyc: valoare invalidă în "${columnLabel}": "${raw}" (așteptat SRL, GmbH sau EOOD)`
+  );
+}
+
+/** Maps board legal form to RO/CH mailbox selector (EOOD uses RO mailbox like SRL). */
+export function crmLycSigningMailboxLegalForm(legalForm: GenerationLegalForm): CrmLycLegalForm {
+  return legalForm === "GmbH" ? "GmbH" : "SRL";
 }
 
 /** Infers SRL/GmbH from generated PDF names like ctr_client_RO_... or ctr_furnizor_CH_... */
@@ -123,43 +160,39 @@ export function inferLegalFormFromPdfFileName(fileName: string): CrmLycLegalForm
   return null;
 }
 
-/** CRM-Lyc webhook: map template + legalForm to Monday-style generation trigger label. */
+/** CRM-Lyc: map template + board legal form to Monday-style generation trigger label. */
 export function crmLycGenerationTrigger(
   template: string,
-  legalForm: string = "SRL"
+  legalForm: GenerationLegalForm
 ): string | null {
   if (template === "client") {
-    return normalizeCrmLycLegalForm(legalForm) === "GmbH" ? "Client GmbH" : "Client SRL";
+    switch (legalForm) {
+      case "SRL":
+        return "Client SRL";
+      case "GmbH":
+        return "Client GmbH";
+      case "EOOD":
+        return "Client EOOD";
+    }
   }
   if (template === "furnizor") {
-    return normalizeCrmLycLegalForm(legalForm) === "GmbH" ? "Trans. GmbH" : "Trans. SRL";
+    switch (legalForm) {
+      case "SRL":
+        return "Trans. SRL";
+      case "GmbH":
+        return "Trans. GmbH";
+      case "EOOD":
+        return "Trans. EOOD";
+    }
   }
   return null;
 }
 
 export function resolveCrmLycSigningLegalForm(params: {
   template: string;
-  legalForm?: string | null;
   textValues: Record<string, string>;
-  sourcePdfName?: string | null;
-}): CrmLycLegalForm {
-  const explicit = (params.legalForm ?? "").trim();
-  if (explicit === "GmbH" || explicit === "SRL") {
-    return explicit;
-  }
-
-  const peKey = crmLycLegalFormPeCrmKey(params.template);
-  if (peKey) {
-    const pe = (params.textValues[peKey] ?? "").trim();
-    if (pe === "GmbH" || pe === "SRL") {
-      return pe;
-    }
-  }
-
-  const fromFile = inferLegalFormFromPdfFileName(params.sourcePdfName ?? "");
-  if (fromFile) return fromFile;
-
-  return "SRL";
+}): GenerationLegalForm {
+  return resolveCrmLycLegalFormFromPeColumn(params);
 }
 
 export const GENERATION_ALLOWED_VALUES = new Set(Object.keys(TEMPLATE_MAPPING));

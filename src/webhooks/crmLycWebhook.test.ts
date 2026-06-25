@@ -126,12 +126,11 @@ describe("createCrmLycWebhookRouter", () => {
     expect(process).toHaveBeenCalledWith({
       boardId: "89f5664d-43d0-4cff-964f-46d5279b7f68",
       itemId: "7f8c389e-4e4a-4f7a-bf7f-bbbd6824b9ed",
-      template: undefined,
-      legalForm: undefined
+      template: undefined
     });
   });
 
-  it("passes vars.legalForm and vars.template to document generation", async () => {
+  it("passes vars.template to document generation (legal form comes from board column)", async () => {
     const process = vi.fn().mockResolvedValue(undefined);
     const app = makeApp({
       crmLycClient: { isStatusValueForCrmKey: vi.fn().mockResolvedValue(true) },
@@ -148,12 +147,11 @@ describe("createCrmLycWebhookRouter", () => {
     expect(process).toHaveBeenCalledWith({
       boardId: "89f5664d-43d0-4cff-964f-46d5279b7f68",
       itemId: "7f8c389e-4e4a-4f7a-bf7f-bbbd6824b9ed",
-      template: "client",
-      legalForm: "GmbH"
+      template: "client"
     });
   });
 
-  it("passes legalForm to signing flow for send_for_signing", async () => {
+  it("passes template to signing flow for send_for_signing (legal form from board column)", async () => {
     const startSigning = vi.fn().mockResolvedValue(undefined);
     const app = makeApp({
       crmLycClient: { isStatusValueForCrmKey: vi.fn() },
@@ -181,7 +179,6 @@ describe("createCrmLycWebhookRouter", () => {
       boardId: "89f5664d-43d0-4cff-964f-46d5279b7f68",
       itemId: "7f8c389e-4e4a-4f7a-bf7f-bbbd6824b9ed",
       template: "furnizor",
-      legalForm: "GmbH",
       recipientEmail: undefined
     });
   });

@@ -11,7 +11,7 @@ import {
 } from "../email/senderSelection";
 import { signingPrincipalCcAddresses } from "../email/signingEmailCc";
 import type { ClientEmailSource } from "../utils/mapping";
-import { resolveCrmLycSigningLegalForm } from "../utils/mapping";
+import { crmLycSigningMailboxLegalForm, resolveCrmLycSigningLegalForm } from "../utils/mapping";
 import { maskToken } from "../signing/signingSessionStore";
 import { extractFirstAssignedUserId } from "../crmLyc/extractAssignedUserId";
 
@@ -43,7 +43,6 @@ export class CrmLycSigningFlow {
     boardId: string;
     template: string;
     recipientEmail?: string;
-    legalForm?: string;
   }): Promise<void> {
     const { itemId, boardId, template } = params;
 
@@ -152,12 +151,8 @@ export class CrmLycSigningFlow {
       (textValues["transport_status"] || "").trim() ||
       itemId;
 
-    const generationLegalForm = resolveCrmLycSigningLegalForm({
-      template,
-      legalForm: params.legalForm,
-      textValues,
-      sourcePdfName: fileRef.name
-    });
+    const boardLegalForm = resolveCrmLycSigningLegalForm({ template, textValues });
+    const generationLegalForm = crmLycSigningMailboxLegalForm(boardLegalForm);
     const signingEmailLanguage = signingEmailLanguageFromLegalForm(generationLegalForm);
     const flowType = template === "furnizor" ? "transportator" : "client";
 
@@ -305,7 +300,10 @@ export class CrmLycSigningFlow {
         unloadingCountry: null
       });
 
-      const from = getFromHeaderForLegalForm(session.generationLegalForm ?? (session.signingEmailLanguage === "ro" ? "SRL" : "GmbH"));
+      if (!session.generationLegalForm) {
+        throw new Error("crm-lyc signing: generationLegalForm missing on session");
+      }
+      const from = getFromHeaderForLegalForm(session.generationLegalForm);
 
       let cc: string[] | undefined;
       try {

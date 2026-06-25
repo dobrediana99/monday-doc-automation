@@ -4,7 +4,12 @@ import { TemplateService } from "../documents/templateService";
 import { PdfService } from "../documents/pdfService";
 import { buildNormalizedItemModel } from "../utils/mondayValues";
 import { buildGeneratedPdfFileName } from "../utils/generatedDocumentName";
-import { TEMPLATE_MAPPING, crmLycGenerationTrigger, normalizeCrmLycLegalForm } from "../utils/mapping";
+import type { GenerationLegalForm } from "../utils/mapping";
+import {
+  TEMPLATE_MAPPING,
+  crmLycGenerationTrigger,
+  resolveCrmLycLegalFormFromPeColumn
+} from "../utils/mapping";
 import { applyPaymentTermsToModel } from "../utils/paymentTermDisplay";
 
 const UPLOAD_COLUMN_BY_TEMPLATE: Record<string, string> = {
@@ -14,7 +19,7 @@ const UPLOAD_COLUMN_BY_TEMPLATE: Record<string, string> = {
 
 function toModel(
   item: Awaited<ReturnType<CrmLycClient["getItemById"]>>,
-  params: { template: string; legalForm: string }
+  params: { template: string; legalForm: GenerationLegalForm }
 ): Record<string, unknown> {
   const model = buildNormalizedItemModel(item);
   model.item_name = item.name;
@@ -23,9 +28,8 @@ function toModel(
   model.price = model.deal_value || "";
   model.loading_address = model.long_text_mkpx6q4a || "";
 
-  const legalForm = normalizeCrmLycLegalForm(params.legalForm);
   // Furnizor templates use Plata la (Client) + Conditii de Plata Client placeholders.
-  applyPaymentTermsToModel({ model, legalForm, party: "client" });
+  applyPaymentTermsToModel({ model, legalForm: params.legalForm, party: "client" });
 
   return model;
 }
@@ -42,14 +46,16 @@ export class CrmLycDocumentGenerationFlow {
     boardId: string;
     itemId: string;
     template?: string;
-    legalForm?: string;
   }): Promise<void> {
-    const item = await this.crmLycClient.getItemById(params.itemId, params.boardId);
-    const legalForm = params.legalForm ?? "SRL";
+    const [item, textValues] = await Promise.all([
+      this.crmLycClient.getItemById(params.itemId, params.boardId),
+      this.crmLycClient.getItemTextValuesByCrmKey(params.itemId, params.boardId)
+    ]);
 
     const templates = params.template ? [params.template] : Object.keys(UPLOAD_COLUMN_BY_TEMPLATE);
 
     for (const template of templates) {
+      const legalForm = resolveCrmLycLegalFormFromPeColumn({ template, textValues });
       const selectedValue = crmLycGenerationTrigger(template, legalForm);
       if (!selectedValue) {
         throw new Error(`crm-lyc document generation: template necunoscut "${template}"`);
