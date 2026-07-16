@@ -49,7 +49,6 @@ interface CrmLycItemValue {
 interface CrmLycCompany {
   name: string | null;
   vat_number: string | null;
-  cui: string | null;
   address: string | null;
   email: string | null;
   phone: string | null;
@@ -662,7 +661,7 @@ export class CrmLycClient {
       return null;
     }
     const data = await this.supabaseSelect<CrmLycCompany>("companies", {
-      select: "name,vat_number,cui,address,email,phone",
+      select: "name,vat_number,address,email,phone",
       id: `eq.${companyId}`,
       limit: "1"
     });
@@ -670,10 +669,7 @@ export class CrmLycClient {
     if (!company) {
       return null;
     }
-    // Mirror the CRM board's "vat" resolution (server/boards/queries.ts): fall
-    // back to CUI when the company has no dedicated VAT number (e.g. RO firms
-    // that aren't VAT-registered), so the generated order shows the same value.
-    const vat = (company.vat_number ?? "").trim() || (company.cui ?? "").trim();
+    const vat = (company.vat_number ?? "").trim();
     return { ...company, vat_number: vat || null };
   }
 
