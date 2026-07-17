@@ -27,9 +27,17 @@ describe("renderSignPage", () => {
 
   it("requires document review before enabling submit", () => {
     expect(html).toContain("let documentReviewed = false");
-    expect(html).toContain("consent && hasInk && nameOk && documentReviewed");
+    expect(html).toContain("consent && signatureVerified && nameOk && documentReviewed");
     expect(html).toContain("Pentru a semna, parcurge documentul până la final");
     expect(html).toContain("function markDocumentReviewed()");
+  });
+
+  it("requires a real signature (not just a stray pixel) before enabling submit", () => {
+    expect(html).toContain("function hasSignificantInk()");
+    expect(html).toContain("MIN_INK_BBOX_WIDTH_CSS");
+    expect(html).toContain("MIN_INK_BBOX_HEIGHT_CSS");
+    expect(html).toContain("MIN_INK_OPAQUE_AREA_CSS");
+    expect(html).toContain("refreshSignatureVerification()");
   });
 
   it("detects manual scroll reaching bottom for review unlock", () => {

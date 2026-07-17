@@ -417,7 +417,59 @@ export function renderSignPage(token: string): string {
 
       let drawing = false;
       let hasInk = false;
+      let signatureVerified = false;
       let documentReviewed = false;
+
+      // Minimum ink required for a real signature, expressed in CSS px (independent of
+      // devicePixelRatio) so a single accidental tap/flick can never satisfy the submit gate.
+      const MIN_INK_BBOX_WIDTH_CSS = 24;
+      const MIN_INK_BBOX_HEIGHT_CSS = 6;
+      const MIN_INK_OPAQUE_AREA_CSS = 60;
+
+      /** Scans the actual canvas pixels right now — never trusts a cached "has drawn" flag. */
+      function scanInk() {
+        const w = canvas.width;
+        const h = canvas.height;
+        if (w === 0 || h === 0) return { opaquePixels: 0, bboxWidthCss: 0, bboxHeightCss: 0 };
+        const data = ctx.getImageData(0, 0, w, h).data;
+        let minX = w, minY = h, maxX = -1, maxY = -1, opaquePixels = 0;
+        for (let y = 0; y < h; y++) {
+          const rowOffset = y * w * 4;
+          for (let x = 0; x < w; x++) {
+            if (data[rowOffset + x * 4 + 3] > 24) {
+              opaquePixels++;
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX < 0) return { opaquePixels: 0, bboxWidthCss: 0, bboxHeightCss: 0 };
+        const dpr = window.devicePixelRatio || 1;
+        return {
+          opaquePixels,
+          bboxWidthCss: (maxX - minX + 1) / dpr,
+          bboxHeightCss: (maxY - minY + 1) / dpr
+        };
+      }
+
+      /** Authoritative "is there a real signature" check, requiring more than a stray pixel. */
+      function hasSignificantInk() {
+        const dpr = window.devicePixelRatio || 1;
+        const stats = scanInk();
+        const minOpaquePixels = MIN_INK_OPAQUE_AREA_CSS * dpr * dpr;
+        return (
+          stats.opaquePixels >= minOpaquePixels &&
+          stats.bboxWidthCss >= MIN_INK_BBOX_WIDTH_CSS &&
+          stats.bboxHeightCss >= MIN_INK_BBOX_HEIGHT_CSS
+        );
+      }
+
+      function refreshSignatureVerification() {
+        signatureVerified = hasInk ? hasSignificantInk() : false;
+        updateSubmitState();
+      }
 
       function resizeCanvasPreserve() {
         const rect = canvas.getBoundingClientRect();
@@ -435,10 +487,16 @@ export function renderSignPage(token: string): string {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.lineWidth = 2;
 
+        // Until the async restore below finishes, the canvas is genuinely blank right now —
+        // treat the signature as unverified so Submit can't fire against empty pixels.
+        signatureVerified = false;
+        updateSubmitState();
+
         if (prev) {
           const img = new Image();
           img.onload = () => {
             ctx.drawImage(img, 0, 0, cssWidth, cssHeight);
+            refreshSignatureVerification();
           };
           img.src = prev;
         }
@@ -477,7 +535,6 @@ export function renderSignPage(token: string): string {
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
         hasInk = true;
-        updateSubmitState();
         evt.preventDefault();
       }
 
@@ -485,6 +542,9 @@ export function renderSignPage(token: string): string {
         if (!drawing) return;
         drawing = false;
         try { canvas.releasePointerCapture(evt.pointerId); } catch {}
+        // Verify against actual pixels once the stroke ends, rather than scanning the whole
+        // canvas on every pointermove while the user is still drawing.
+        refreshSignatureVerification();
       }
 
       // Pointer events cover mouse + touch + pen.
@@ -510,7 +570,7 @@ export function renderSignPage(token: string): string {
       function updateSubmitState() {
         const consent = document.getElementById('consent').checked;
         const nameOk = fullNameTrimmed().length > 0;
-        document.getElementById('submit').disabled = !(consent && hasInk && nameOk && documentReviewed);
+        document.getElementById('submit').disabled = !(consent && signatureVerified && nameOk && documentReviewed);
       }
 
       document.getElementById('consent').addEventListener('change', updateSubmitState);
@@ -520,6 +580,7 @@ export function renderSignPage(token: string): string {
         const rect = canvas.getBoundingClientRect();
         ctx.clearRect(0, 0, rect.width, rect.height);
         hasInk = false;
+        signatureVerified = false;
         updateSubmitState();
       };
 
@@ -635,6 +696,18 @@ export function renderSignPage(token: string): string {
         const fullName = fullNameTrimmed();
         if (!fullName) {
           bilingualStatus(status, ${JSON.stringify(SIGN_VALIDATION_FULL_NAME_RO)}, ${JSON.stringify(SIGN_VALIDATION_FULL_NAME_EN)});
+          return;
+        }
+
+        // Authoritative re-check against current pixels right before sending — never trust
+        // cached ink state, since a resize can wipe the canvas asynchronously in between.
+        refreshSignatureVerification();
+        if (!signatureVerified) {
+          bilingualStatus(
+            status,
+            'Semnatura pare goala sau incompleta. Te rugam sa desenezi semnatura completa in casuta de mai sus.',
+            'The signature looks empty or incomplete. Please draw your full signature in the box above.'
+          );
           return;
         }
 
