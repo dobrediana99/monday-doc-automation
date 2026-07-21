@@ -182,6 +182,17 @@ function optionIdForLabel(config: unknown, label: string): string | null {
   return candidates.find((entry) => entry.label.trim().toLowerCase() === normalizedLabel)?.id ?? null;
 }
 
+/** "YYYY-MM-DD" (optionally with a "T..." time suffix) → "DD.MM.YYYY", matching the format doc-automation's other date parsing already accepts. */
+function formatIsoDatePart(value: string): string {
+  const datePart = value.trim().slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  if (!match) {
+    return datePart;
+  }
+  const [, year, month, day] = match;
+  return `${day}.${month}.${year}`;
+}
+
 function displayValueForColumnValue(value: unknown, column: CrmLycColumn): string {
   if (value === null || value === undefined) {
     return "";
@@ -205,6 +216,13 @@ function displayValueForColumnValue(value: unknown, column: CrmLycColumn): strin
     if (label) {
       return label;
     }
+  }
+
+  // "date" column (allowRange): { date: "YYYY-MM-DD", end?: "YYYY-MM-DD" | null }
+  if (typeof record.date === "string" && record.date.trim()) {
+    const start = formatIsoDatePart(record.date);
+    const end = typeof record.end === "string" && record.end.trim() ? formatIsoDatePart(record.end) : null;
+    return end ? `${start} - ${end}` : start;
   }
 
   for (const key of ["label", "name", "text", "title", "display_value", "display", "email", "phone"]) {
