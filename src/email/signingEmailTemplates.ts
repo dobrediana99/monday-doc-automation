@@ -2,17 +2,17 @@ import type { SigningEmailLanguage } from "./signingEmailLocale";
 import type { SigningFlowType } from "../utils/mapping";
 
 const TRANSPORT_ORGANIZATION_CONTACT_NOTE = `
-Pentru organizarea si monitorizarea transportului puteti lua legatura cu Ana Maria Tamas.
+Pentru organizarea si monitorizarea transportului puteti lua legatura cu Simion Beatrice, Senior Financial Officer.
 
-Email: ana-maria.t@crystal-logistics-services.com
-Telefon: +40 736 936 624
+Email: invoices@crystal-logistics-services.com
+Telefon: +40 747 233 427
 `.trim();
 
 const TRANSPORT_ORGANIZATION_CONTACT_NOTE_HTML = `
-<p>Pentru organizarea si monitorizarea transportului puteti lua legatura cu Ana Maria Tamas.</p>
+<p>Pentru organizarea si monitorizarea transportului puteti lua legatura cu Simion Beatrice, Senior Financial Officer.</p>
 <p>
-  Email: <a href="mailto:ana-maria.t@crystal-logistics-services.com">ana-maria.t@crystal-logistics-services.com</a><br>
-  Telefon: +40 736 936 624
+  Email: <a href="mailto:invoices@crystal-logistics-services.com">invoices@crystal-logistics-services.com</a><br>
+  Telefon: +40 747 233 427
 </p>
 `.trim();
 

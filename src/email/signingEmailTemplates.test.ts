@@ -47,9 +47,9 @@ describe("buildSignatureRequestEmail", () => {
       signingUrl: "https://svc/sign/tok",
       clientSource: "Altceva"
     });
-    expect(html).toContain("Pentru organizarea si monitorizarea transportului puteti lua legatura cu Ana Maria Tamas.");
-    expect(html).toContain("ana-maria.t@crystal-logistics-services.com");
-    expect(html).toContain("+40 736 936 624");
+    expect(html).toContain("Pentru organizarea si monitorizarea transportului puteti lua legatura cu Simion Beatrice, Senior Financial Officer.");
+    expect(html).toContain("invoices@crystal-logistics-services.com");
+    expect(html).toContain("+40 747 233 427");
   });
 
   it("transportator email does NOT include transport organization contact note when Sursa Client is in allowlist", () => {
@@ -60,9 +60,9 @@ describe("buildSignatureRequestEmail", () => {
       signingUrl: "https://svc/sign/tok",
       clientSource: "Timocom"
     });
-    expect(html).not.toContain("Pentru organizarea si monitorizarea transportului puteti lua legatura cu Ana Maria Tamas.");
-    expect(html).not.toContain("ana-maria.t@crystal-logistics-services.com");
-    expect(html).not.toContain("+40 736 936 624");
+    expect(html).not.toContain("Pentru organizarea si monitorizarea transportului puteti lua legatura cu Simion Beatrice, Senior Financial Officer.");
+    expect(html).not.toContain("invoices@crystal-logistics-services.com");
+    expect(html).not.toContain("+40 747 233 427");
   });
 
   it("EN client subject includes order reference and body includes required text + signing link", () => {
