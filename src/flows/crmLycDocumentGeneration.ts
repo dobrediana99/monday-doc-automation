@@ -14,7 +14,8 @@ import { applyPaymentTermsToModel } from "../utils/paymentTermDisplay";
 
 const UPLOAD_COLUMN_BY_TEMPLATE: Record<string, string> = {
   client: "unsigned_client_order",
-  furnizor: "unsigned_supplier_order"
+  furnizor: "unsigned_supplier_order",
+  intermediar: "comanda_intermediara"
 };
 
 function toModel(
@@ -55,7 +56,10 @@ export class CrmLycDocumentGenerationFlow {
     const templates = params.template ? [params.template] : Object.keys(UPLOAD_COLUMN_BY_TEMPLATE);
 
     for (const template of templates) {
-      const legalForm = resolveCrmLycLegalFormFromPeColumn({ template, textValues });
+      // Comandă intermediară: casa de expediție e mereu Crystal SRL, nu depinde
+      // de nicio coloană "Furnizor pe"/"Client pe" pe item.
+      const legalForm: GenerationLegalForm =
+        template === "intermediar" ? "SRL" : resolveCrmLycLegalFormFromPeColumn({ template, textValues });
       const selectedValue = crmLycGenerationTrigger(template, legalForm);
       if (!selectedValue) {
         throw new Error(`crm-lyc document generation: template necunoscut "${template}"`);

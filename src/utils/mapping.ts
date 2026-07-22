@@ -100,7 +100,7 @@ export function legalFormLabelForTrigger(selectedValue: string): string | null {
   return parseGenerationTrigger(selectedValue)?.legalForm ?? null;
 }
 
-export type CrmLycDocTemplate = "client" | "furnizor";
+export type CrmLycDocTemplate = "client" | "furnizor" | "intermediar";
 export type CrmLycLegalForm = Extract<GenerationLegalForm, "SRL" | "GmbH">;
 
 export function normalizeCrmLycLegalForm(value?: string | null): CrmLycLegalForm {
@@ -184,6 +184,11 @@ export function crmLycGenerationTrigger(
       case "EOOD":
         return "Trans. EOOD";
     }
+  }
+  if (template === "intermediar") {
+    // Comandă intermediară: casa de expediție e mereu Crystal SRL — reutilizează
+    // exact șablonul "furnizor" SRL, legalForm-ul primit e ignorat.
+    return "Trans. SRL";
   }
   return null;
 }
