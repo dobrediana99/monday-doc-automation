@@ -9,11 +9,11 @@ import {
   getFromHeaderForLegalForm,
   signingEmailLanguageFromLegalForm
 } from "../email/senderSelection";
-import { signingPrincipalCcAddresses } from "../email/signingEmailCc";
+import { normalizeDedupedCcExcludingTo } from "../email/signingEmailCc";
 import type { ClientEmailSource } from "../utils/mapping";
 import { crmLycSigningMailboxLegalForm, resolveCrmLycSigningLegalForm } from "../utils/mapping";
 import { maskToken } from "../signing/signingSessionStore";
-import { extractFirstAssignedUserId } from "../crmLyc/extractAssignedUserId";
+import { extractFirstAssignedUserId, extractSecondAssignedUserId } from "../crmLyc/extractAssignedUserId";
 
 const CRM_LYC_STORAGE_BUCKET = "board-files";
 
@@ -38,6 +38,62 @@ export class CrmLycSigningFlow {
     private readonly appBaseUrl: string
   ) {}
 
+  /** Resolves emails for the Principal (first assigned) and Secondary (second assigned), if any. */
+  private async resolveAssignedCcEmails(
+    assignedRaw: unknown,
+    itemId: string,
+    boardId: string
+  ): Promise<{ principalEmail: string | null; secondaryEmail: string | null }> {
+    const principalUserId = extractFirstAssignedUserId(assignedRaw);
+    const secondaryUserId = extractSecondAssignedUserId(assignedRaw);
+
+    const [principalEmail, secondaryEmail] = await Promise.all([
+      principalUserId
+        ? this.crmLycClient.getUserEmail(principalUserId).catch((error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            console.warn(
+              JSON.stringify({
+                event: "crm_lyc_principal_cc_resolution_failed",
+                itemId,
+                boardId,
+                principalUserId,
+                message: message.slice(0, 200)
+              })
+            );
+            return null;
+          })
+        : Promise.resolve(null),
+      secondaryUserId
+        ? this.crmLycClient.getUserEmail(secondaryUserId).catch((error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            console.warn(
+              JSON.stringify({
+                event: "crm_lyc_secondary_cc_resolution_failed",
+                itemId,
+                boardId,
+                secondaryUserId,
+                message: message.slice(0, 200)
+              })
+            );
+            return null;
+          })
+        : Promise.resolve(null)
+    ]);
+
+    if (!principalUserId && assignedRaw != null) {
+      console.info(
+        JSON.stringify({
+          event: "crm_lyc_principal_cc_missing",
+          reason: "no_assigned_user_id",
+          itemId,
+          boardId
+        })
+      );
+    }
+
+    return { principalEmail, secondaryEmail };
+  }
+
   async startSigning(params: {
     itemId: string;
     boardId: string;
@@ -58,32 +114,7 @@ export class CrmLycSigningFlow {
       this.crmLycClient.getRawValueByCrmKey(itemId, boardId, "assigned")
     ]);
 
-    const assignedUserId = extractFirstAssignedUserId(assignedRaw);
-    let principalEmail: string | null = null;
-    if (assignedUserId) {
-      principalEmail = await this.crmLycClient.getUserEmail(assignedUserId).catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(
-          JSON.stringify({
-            event: "crm_lyc_principal_cc_resolution_failed",
-            itemId,
-            boardId,
-            principalUserId: assignedUserId,
-            message: message.slice(0, 200)
-          })
-        );
-        return null;
-      });
-    } else if (assignedRaw != null) {
-      console.info(
-        JSON.stringify({
-          event: "crm_lyc_principal_cc_missing",
-          reason: "no_assigned_user_id",
-          itemId,
-          boardId
-        })
-      );
-    }
+    const { principalEmail, secondaryEmail } = await this.resolveAssignedCcEmails(assignedRaw, itemId, boardId);
 
     if (!fileRef) {
       throw new Error(
@@ -200,7 +231,10 @@ export class CrmLycSigningFlow {
 
     const from = getFromHeaderForLegalForm(generationLegalForm);
 
-    const cc = signingPrincipalCcAddresses(recipientEmail, principalEmail);
+    const cc = normalizeDedupedCcExcludingTo(
+      recipientEmail,
+      [principalEmail, secondaryEmail].filter((email): email is string => Boolean(email?.trim()))
+    );
 
     await this.gmailService.sendEmail({
       to: recipientEmail,
@@ -221,7 +255,8 @@ export class CrmLycSigningFlow {
         recipientEmail,
         ...(recipientEmailSource ? { recipientEmailSource } : {}),
         cc,
-        principalCcApplied: Boolean(cc?.length),
+        principalCcApplied: Boolean(principalEmail),
+        secondaryCcApplied: Boolean(secondaryEmail),
         token: maskToken(session.token)
       })
     );
@@ -306,17 +341,21 @@ export class CrmLycSigningFlow {
       const from = getFromHeaderForLegalForm(session.generationLegalForm);
 
       let cc: string[] | undefined;
+      let principalEmail: string | null = null;
+      let secondaryEmail: string | null = null;
       try {
         const assignedRaw = await this.crmLycClient.getRawValueByCrmKey(
           session.itemId,
           session.boardId,
           "assigned"
         );
-        const assignedUserId = extractFirstAssignedUserId(assignedRaw);
-        const principalEmail = assignedUserId
-          ? await this.crmLycClient.getUserEmail(assignedUserId).catch(() => null)
-          : null;
-        cc = signingPrincipalCcAddresses(session.recipientEmail, principalEmail);
+        const resolved = await this.resolveAssignedCcEmails(assignedRaw, session.itemId, session.boardId);
+        principalEmail = resolved.principalEmail;
+        secondaryEmail = resolved.secondaryEmail;
+        cc = normalizeDedupedCcExcludingTo(
+          session.recipientEmail,
+          [principalEmail, secondaryEmail].filter((email): email is string => Boolean(email?.trim()))
+        );
       } catch {
         // Email still sends to recipient without CC.
       }
@@ -338,7 +377,9 @@ export class CrmLycSigningFlow {
           event: "crm_lyc_signed_contract_email_sent",
           itemId: session.itemId,
           to: session.recipientEmail,
-          principalCcApplied: Boolean(cc?.length)
+          cc,
+          principalCcApplied: Boolean(principalEmail),
+          secondaryCcApplied: Boolean(secondaryEmail)
         })
       );
     } finally {

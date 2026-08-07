@@ -32,6 +32,14 @@ export const CRM_LYC_TRANSPORT_BOARD_ID = "89f5664d-43d0-4cff-964f-46d5279b7f68"
 export const CRM_LYC_TRANSPORT_STATUS_CRM_KEY = "transport_status";
 export const CRM_LYC_SIGNED_STATUS_LABEL = "Semnat";
 
+/**
+ * Compania GmbH (CH) folosită mereu ca furnizor pe documentul de comandă intermediară.
+ * Casa de expediție (Crystal SRL) și furnizorul (Crystal GmbH) sunt mereu aceleași două
+ * entități proprii pentru acest template — de aceea NU se citește "Companie Furnizor" de
+ * pe board (acel câmp rămâne furnizorul real al cursei, neatins de generarea documentului).
+ */
+export const CRM_LYC_INTERMEDIAR_SUPPLIER_COMPANY_ID = "4ba0590e-e66c-4e3d-8b7b-edcd6ad84ffc";
+
 type JsonRecord = Record<string, unknown>;
 
 interface CrmLycColumn {
@@ -395,7 +403,11 @@ export class CrmLycClient {
     return actualId === expectedId;
   }
 
-  async getItemById(itemId: string, boardId = CRM_LYC_TRANSPORT_BOARD_ID): Promise<MondayItem> {
+  async getItemById(
+    itemId: string,
+    boardId = CRM_LYC_TRANSPORT_BOARD_ID,
+    template?: string
+  ): Promise<MondayItem> {
     const [itemValues, columns] = await Promise.all([
       this.supabaseSelect<CrmLycItemValue>("item_values", {
         select: "column_id,value",
@@ -426,9 +438,16 @@ export class CrmLycClient {
 
     this.logValueShapeOnce(boardId, itemId, rawByKey);
 
+    // Comandă intermediară: furnizorul e mereu Crystal GmbH, indiferent de ce e legat pe
+    // board în "Companie Furnizor" — acel câmp rămâne furnizorul real al cursei.
+    const supplierCompanyId =
+      template === "intermediar"
+        ? CRM_LYC_INTERMEDIAR_SUPPLIER_COMPANY_ID
+        : linkedId(rawByKey.supplier_company);
+
     const [clientCompany, supplierCompany] = await Promise.all([
       this.fetchCompany(linkedId(rawByKey.company)),
-      this.fetchCompany(linkedId(rawByKey.supplier_company))
+      this.fetchCompany(supplierCompanyId)
     ]);
 
     const columnValues: MondayColumnValue[] = [];

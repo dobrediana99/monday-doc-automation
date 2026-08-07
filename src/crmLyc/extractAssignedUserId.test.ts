@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractFirstAssignedUserId } from "./extractAssignedUserId";
+import { extractFirstAssignedUserId, extractSecondAssignedUserId } from "./extractAssignedUserId";
 
 describe("extractFirstAssignedUserId", () => {
   it("reads legacy single user_id", () => {
@@ -28,5 +28,40 @@ describe("extractFirstAssignedUserId", () => {
     expect(extractFirstAssignedUserId(null)).toBeNull();
     expect(extractFirstAssignedUserId({})).toBeNull();
     expect(extractFirstAssignedUserId({ user_ids: [] })).toBeNull();
+  });
+});
+
+describe("extractSecondAssignedUserId", () => {
+  it("reads the second id from multi-person user_ids shape", () => {
+    expect(
+      extractSecondAssignedUserId({
+        users: [
+          { name: "Dan", user_id: "c447a7e2-48c7-421d-a199-acd0bdd8fef0" },
+          { name: "Ana", user_id: "8f0a9f52-2e6a-4a1e-9f5a-7c1e6c9d0b11" }
+        ],
+        user_ids: ["c447a7e2-48c7-421d-a199-acd0bdd8fef0", "8f0a9f52-2e6a-4a1e-9f5a-7c1e6c9d0b11"]
+      })
+    ).toBe("8f0a9f52-2e6a-4a1e-9f5a-7c1e6c9d0b11");
+  });
+
+  it("falls back to users array when user_ids has only one entry", () => {
+    expect(
+      extractSecondAssignedUserId({
+        users: [{ user_id: "first-id" }, { user_id: "second-id" }],
+        user_ids: ["first-id"]
+      })
+    ).toBe("second-id");
+  });
+
+  it("returns null when only one person is assigned", () => {
+    expect(extractSecondAssignedUserId({ user_id: "abc-123" })).toBeNull();
+    expect(extractSecondAssignedUserId({ user_ids: ["only-one"] })).toBeNull();
+    expect(extractSecondAssignedUserId({ users: [{ user_id: "only-one" }] })).toBeNull();
+  });
+
+  it("returns null for empty values", () => {
+    expect(extractSecondAssignedUserId(null)).toBeNull();
+    expect(extractSecondAssignedUserId({})).toBeNull();
+    expect(extractSecondAssignedUserId({ user_ids: [] })).toBeNull();
   });
 });

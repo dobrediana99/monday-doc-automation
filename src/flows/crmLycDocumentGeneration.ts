@@ -48,14 +48,15 @@ export class CrmLycDocumentGenerationFlow {
     itemId: string;
     template?: string;
   }): Promise<void> {
-    const [item, textValues] = await Promise.all([
-      this.crmLycClient.getItemById(params.itemId, params.boardId),
-      this.crmLycClient.getItemTextValuesByCrmKey(params.itemId, params.boardId)
-    ]);
+    const textValues = await this.crmLycClient.getItemTextValuesByCrmKey(params.itemId, params.boardId);
 
     const templates = params.template ? [params.template] : Object.keys(UPLOAD_COLUMN_BY_TEMPLATE);
 
     for (const template of templates) {
+      // Furnizorul comenzii intermediare (Crystal GmbH) e fix — resolvit per-template, nu poate fi
+      // partajat cu client/furnizor, care folosesc furnizorul real legat pe board.
+      const item = await this.crmLycClient.getItemById(params.itemId, params.boardId, template);
+
       // Comandă intermediară: casa de expediție e mereu Crystal SRL, nu depinde
       // de nicio coloană "Furnizor pe"/"Client pe" pe item.
       const legalForm: GenerationLegalForm =
