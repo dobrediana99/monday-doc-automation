@@ -126,7 +126,9 @@ export const DocumentModelV2Schema = z.object({
     stops: z.array(StopSchema).min(2),
     transportMode: z.string().optional(),
     transportType: z.string().optional(),
-    distanceKm: z.number().optional()
+    distanceKm: z.number().optional(),
+    customsExport: z.string().optional(),
+    customsImport: z.string().optional()
   }),
 
   cargo: z
@@ -139,6 +141,8 @@ export const DocumentModelV2Schema = z.object({
       ldm: z.number().optional(),
       pallets: z.number().optional(),
       adrClass: z.string().optional(),
+      truckPlate: z.string().optional(),
+      driverName: z.string().optional(),
       temperatureMin: z.number().optional(),
       temperatureMax: z.number().optional()
     })

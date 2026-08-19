@@ -103,8 +103,21 @@ export function buildDocxModel(model: DocumentModelV2): Record<string, unknown> 
     ...derived,
     ...languageFlags(languages),
     ...model.flags,
-    /** Etichetele compuse, folosite ca `{L.loading_country}`. */
-    L: buildLabels(languages),
+    /**
+     * Etichetele, sub chei care conțin PUNCTUL în nume: „L.loading_country".
+     *
+     * Nu e o scăpare, e cerința lui docxtemplater: parserul implicit nu
+     * interpretează `{L.loading_country}` ca acces în obiectul `L`, ci caută un
+     * tag numit exact așa. Trimițând `L` ca obiect imbricat, toate etichetele
+     * ieșeau goale — iar `nullGetter` le transforma în șir vid, deci nici nu se
+     * vedea că lipsesc: documentul apărea pur și simplu fără etichete.
+     *
+     * Alternativa ar fi un parser propriu care desface punctele. Nu merită:
+     * ar schimba felul în care se citesc TOATE tag-urile, pentru un singur caz.
+     */
+    ...Object.fromEntries(
+      Object.entries(buildLabels(languages)).map(([key, value]) => [`L.${key}`, value])
+    ),
     languages: languages.join(","),
 
     ...partyFields("issuer", model.parties.issuer),
@@ -150,6 +163,12 @@ export function buildDocxModel(model: DocumentModelV2): Record<string, unknown> 
     cargo_ldm: model.cargo?.ldm ?? "",
     cargo_pallets: model.cargo?.pallets ?? "",
     adr_class: model.cargo?.adrClass ?? "",
+    truck_plate: model.cargo?.truckPlate ?? "",
+    driver_name: model.cargo?.driverName ?? "",
+    customs_export: model.route.customsExport ?? "",
+    customs_import: model.route.customsImport ?? "",
+    // Clauzele și ca text pe rânduri, pentru șabloanele care nu folosesc bucla.
+    extra_clauses_text: extraClauses.join("\n"),
     temperature_min: model.cargo?.temperatureMin ?? "",
     temperature_max: model.cargo?.temperatureMax ?? "",
 

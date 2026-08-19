@@ -97,9 +97,17 @@ const decode = (s) =>
 const encode = (s) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** Textul vizibil al unui paragraf. */
+/**
+ * Textul vizibil al unui paragraf.
+ *
+ * Regexul trebuie să ceară SPAȚIU sau `>` imediat după `<w:t`. Varianta
+ * `<w:t[^>]*>` se potrivea și cu `<w:tab w:val="left"/>` și cu `<w:tabs>`, care
+ * apar în `w:pPr`. Rezultatul: „textul" citit conținea markup XML, iar la
+ * rescriere ajungea TIPĂRIT în document — pagini întregi de `<w:tab w:val=…`
+ * vizibile în Word.
+ */
 function paraText(xml) {
-  return decode([...xml.matchAll(/<w:t[^>]*>(.*?)<\/w:t>/gs)].map((m) => m[1]).join(""));
+  return decode([...xml.matchAll(/<w:t(?:\s[^>]*)?>(.*?)<\/w:t>/gs)].map((m) => m[1]).join(""));
 }
 
 /**
@@ -153,6 +161,21 @@ async function main() {
         changedLabels += 1;
       }
     }
+    // Accesorialele și asigurarea nu aveau unde să apară: șablonul e dinainte de
+    // modelul v2 și n-are marcaje pentru ele. Se adaugă în celula de «Clauze
+    // Suplimentare», în ACELAȘI paragraf — deci fără atingerea tabelului, unde
+    // o greșeală dă fișierul pe care Word refuză să-l deschidă.
+    //
+    // Blocurile se deschid și se închid în aceeași celulă, deci sunt echilibrate
+    // oricât de mult ar crește listele.
+    if (next.includes("{extra_clauses_text}")) {
+      next +=
+        "{#has_accessorials}\n{L.accessorials}: " +
+        "{#accessorials}{label} · {/accessorials}{/has_accessorials}" +
+        "{#has_insurance}\n{L.insurance}: {insurance_value}" +
+        "{#insurance_premium} (primă {insurance_premium}){/insurance_premium}{/has_insurance}";
+    }
+
     return next === text ? null : next;
   });
 

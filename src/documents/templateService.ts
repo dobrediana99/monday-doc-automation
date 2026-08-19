@@ -10,7 +10,11 @@ export class TemplateService {
 
     const doc = new Docxtemplater(zip, {
       paragraphLoop: true,
-      linebreaks: true
+      linebreaks: true,
+      // Fără asta, o cheie lipsă din model se randează literal „undefined" în
+      // document. Pe o comandă care se semnează, un câmp gol e acceptabil;
+      // cuvântul „undefined" tipărit lângă o etichetă nu e.
+      nullGetter: () => ""
     });
 
     doc.render(model);
