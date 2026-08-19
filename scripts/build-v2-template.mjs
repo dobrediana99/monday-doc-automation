@@ -113,11 +113,6 @@ function rewritePara(xml, newText) {
   return `${open}${pPr}<w:r>${rPr}<w:t xml:space="preserve">${encode(newText)}</w:t></w:r></w:p>`;
 }
 
-/** Paragraf care conține doar un marcaj de bloc (`{#lang_ro}`). */
-function markerPara(marker) {
-  return `<w:p><w:r><w:t xml:space="preserve">${encode(marker)}</w:t></w:r></w:p>`;
-}
-
 async function main() {
   const [src, dest] = process.argv.slice(2);
   if (!src || !dest) {
@@ -128,21 +123,24 @@ async function main() {
   const zip = new PizZip(await fs.readFile(src));
   const original = zip.file("word/document.xml").asText();
 
-  const paras = [...original.matchAll(/<w:p[ >].*?<\/w:p>/gs)].map((m) => m[0]);
+  // Se lucrează PE LOC, pe șirul original. Prima versiune reconstruia documentul
+  // lipind paragrafele găsite — ceea ce arunca tot ce era ÎNTRE ele: <w:tbl>,
+  // <w:tr>, <w:tc>. Documentul e construit din tabele, deci ieșea un fișier pe
+  // care Word refuza să-l deschidă. Aici fiecare paragraf schimbat înlocuiește
+  // exact bucata lui, iar restul XML-ului rămâne bit cu bit neatins.
+  const paraRe = /<w:p[ >].*?<\/w:p>/gs;
+  const paras = [...original.matchAll(paraRe)].map((m) => ({ xml: m[0], start: m.index }));
   console.log(`Paragrafe: ${paras.length}`);
 
   let changedPlaceholders = 0;
   let changedLabels = 0;
 
-  const out = paras.map((p) => {
-    const text = paraText(p);
-    if (!text.trim()) return p;
-
+  /** Textul nou al fiecărui paragraf, sau null dacă rămâne neschimbat. */
+  const newText = paras.map(({ xml }) => {
+    const text = paraText(xml);
+    if (!text.trim()) return null;
     let next = text;
-
-    for (const [from, to] of MERGED) {
-      if (next.includes(from)) next = next.split(from).join(to);
-    }
+    for (const [from, to] of MERGED) if (next.includes(from)) next = next.split(from).join(to);
     for (const [id, name] of Object.entries(PLACEHOLDERS)) {
       if (next.includes(`{${id}}`)) {
         next = next.split(`{${id}}`).join(`{${name}}`);
@@ -155,36 +153,61 @@ async function main() {
         changedLabels += 1;
       }
     }
-
-    return next === text ? p : rewritePara(p, next);
+    return next === text ? null : next;
   });
 
-  // Secțiunile de clauze, învelite ca să poată fi aprinse pe limbă.
-  const idxRo = out.findIndex((p) => paraText(p).trim().startsWith(TERMS_RO_START));
-  const idxEn = out.findIndex((p) => paraText(p).trim().startsWith(TERMS_EN_START));
+  // Secțiunile de clauze: marcajele se LIPESC de textul paragrafelor de la
+  // capete, nu se inserează paragrafe noi. Un <w:p> nou strecurat între
+  // rândurile unui tabel ar strica structura; așa, XML-ul nu se schimbă deloc ca
+  // formă. docxtemplater tratează la fel un bloc care începe într-un paragraf și
+  // se termină în altul.
+  const idxRo = paras.findIndex((p) => paraText(p.xml).trim().startsWith(TERMS_RO_START));
+  const idxEn = paras.findIndex((p) => paraText(p.xml).trim().startsWith(TERMS_EN_START));
   if (idxRo < 0 || idxEn < 0 || idxEn <= idxRo) {
     throw new Error(
       `Nu am găsit ambele secțiuni de clauze (ro=${idxRo}, en=${idxEn}). ` +
         "Șablonul s-a schimbat — verifică TERMS_RO_START / TERMS_EN_START."
     );
   }
-  console.log(`Clauze: română la paragraful ${idxRo}, engleză la ${idxEn}`);
+  // Capătul blocului trebuie să fie în ACELAȘI container ca începutul.
+  // Clauzele stau într-un tabel (196 din cele 200 de paragrafe), iar documentul
+  // se termină cu câteva paragrafe goale ÎN AFARA lui. Închizând acolo,
+  // docxtemplater refuza șablonul: „the tags are misplaced, one of them is in a
+  // table and the other one outside". Deci se caută ultimul paragraf cu text
+  // aflat de aceeași parte a graniței.
+  const tables = [...original.matchAll(/<w:tbl>.*?<\/w:tbl>/gs)].map((m) => [
+    m.index,
+    m.index + m[0].length,
+  ]);
+  const inTable = (i) => tables.some(([a, b]) => a <= paras[i].start && paras[i].start < b);
 
-  const wrapped = [
-    ...out.slice(0, idxRo),
-    markerPara("{#lang_ro}"),
-    ...out.slice(idxRo, idxEn),
-    markerPara("{/lang_ro}"),
-    markerPara("{#lang_en}"),
-    ...out.slice(idxEn),
-    markerPara("{/lang_en}"),
-  ];
+  /** Ultimul paragraf din [from..to] cu text și din același container ca `like`. */
+  const closeAt = (from, to, like) => {
+    for (let i = to; i >= from; i -= 1) {
+      if (paraText(paras[i].xml).trim() && inTable(i) === inTable(like)) return i;
+    }
+    return to;
+  };
 
-  // Se reconstruiește documentul înlocuind exact zona paragrafelor: tot ce e
-  // înainte de primul și după ultimul (secțiune, margini) rămâne neatins.
-  const first = original.indexOf(paras[0]);
-  const last = original.lastIndexOf(paras[paras.length - 1]) + paras[paras.length - 1].length;
-  const rebuilt = original.slice(0, first) + wrapped.join("") + original.slice(last);
+  const lastRo = closeAt(idxRo, idxEn - 1, idxRo);
+  const lastEn = closeAt(idxEn, paras.length - 1, idxEn);
+  console.log(
+    `Clauze: română ${idxRo}–${lastRo}, engleză ${idxEn}–${lastEn} (în tabel: ${inTable(idxRo)})`
+  );
+
+  const at = (i) => newText[i] ?? paraText(paras[i].xml);
+  newText[idxRo] = "{#lang_ro}" + at(idxRo);
+  newText[lastRo] = at(lastRo) + "{/lang_ro}";
+  newText[idxEn] = "{#lang_en}" + at(idxEn);
+  newText[lastEn] = at(lastEn) + "{/lang_en}";
+
+  // Înlocuirea se face de la coadă spre cap, ca indicii celor dinainte să rămână valizi.
+  let rebuilt = original;
+  for (let i = paras.length - 1; i >= 0; i -= 1) {
+    if (newText[i] == null) continue;
+    const { xml, start } = paras[i];
+    rebuilt = rebuilt.slice(0, start) + rewritePara(xml, newText[i]) + rebuilt.slice(start + xml.length);
+  }
 
   zip.file("word/document.xml", rebuilt);
   await fs.writeFile(dest, zip.generate({ type: "nodebuffer", compression: "DEFLATE" }));

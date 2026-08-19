@@ -23,7 +23,11 @@ export const TEMPLATE_REGISTRY_V2: Record<string, string> = {
   // Prima transformare reală, făcută cu scripts/build-v2-template.mjs pornind de
   // la șablonul de furnizor aflat în uz. Serveşte ca probă a mecanismului:
   // aceleaşi trei limbi ies din acest singur fişier.
-  cmd_furnizor_ro: "v2/cmd_furnizor_RO.docx"
+  cmd_furnizor_ro: "v2/cmd_furnizor_RO.docx",
+  // LOAD YOUR CARGO BV. Deocamdată pornește de la aceeași bază ca celelalte —
+  // numele emitentului vine din model, deci se schimbă fără fișier nou; antetul
+  // tipărit și logo-ul rămân ale lui Crystal până se face un șablon propriu.
+  cmd_client_lyc: "v2/cmd_client_LYC.docx"
 };
 
 export type TemplateResolution =
