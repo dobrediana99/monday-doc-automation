@@ -17,6 +17,8 @@ import { CrmLycClient } from "./crmLyc/crmLycClient";
 import { CrmLycDocumentGenerationFlow } from "./flows/crmLycDocumentGeneration";
 import { CrmLycSigningFlow } from "./flows/crmLycSigningFlow";
 import { createCrmLycWebhookRouter } from "./webhooks/crmLycWebhook";
+import { CrmLycDocumentGenerationV2Flow } from "./flows/crmLycDocumentGenerationV2";
+import { createCrmLycV2WebhookRouter } from "./webhooks/crmLycV2Webhook";
 import { IdempotencyService } from "./utils/idempotency";
 import { createSigningRouter } from "./signing/signingController";
 import { AuditService } from "./signing/auditService";
@@ -135,6 +137,26 @@ async function bootstrap(): Promise<void> {
     );
 
     logger.info("crm-lyc adapter enabled at POST /webhooks/crm-lyc");
+
+    // Modelul v2, în paralel cu cel de sus. Ruta se înregistrează DOAR cu
+    // CRM_LYC_V2_ENABLED=1, deci pe revizia de producție nu există. Fluxul vechi
+    // rămâne montat mai sus indiferent de comutator — v2 nu îl înlocuiește și nu
+    // îi schimbă nimic.
+    if (env.CRM_LYC_V2_ENABLED) {
+      app.use(
+        "/webhooks",
+        createCrmLycV2WebhookRouter({
+          documentFlow: new CrmLycDocumentGenerationV2Flow(
+            crmLycClient,
+            gcsService,
+            templateService,
+            pdfService
+          ),
+          webhookSecret: env.CRM_LYC_WEBHOOK_SECRET
+        })
+      );
+      logger.info("crm-lyc v2 (model nou) enabled at POST /webhooks/crm-lyc/v2");
+    }
   }
 
   app.get("/health", (_req, res) => {

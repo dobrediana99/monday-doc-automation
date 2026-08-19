@@ -39,7 +39,18 @@ const BaseEnvSchema = z.object({
   DOC_AUTOMATION_API_KEY: z.string().min(1).optional(),
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-  CRM_LYC_BASE_URL: z.string().url().optional()
+  CRM_LYC_BASE_URL: z.string().url().optional(),
+  /**
+   * Aprinde generarea pe modelul v2 (`POST /webhooks/crm-lyc/v2`).
+   *
+   * Stins implicit: chiar dacă branch-ul ajunge deployat, ruta nu se
+   * înregistrează, deci nu poate primi nimic. Se aprinde doar pe revizia de
+   * test, cu `CRM_LYC_V2_ENABLED=1`.
+   */
+  CRM_LYC_V2_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v === "1" || v === "true")
 });
 
 const EnvSchema = BaseEnvSchema.superRefine((data, ctx) => {
