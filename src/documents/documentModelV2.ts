@@ -92,8 +92,12 @@ export const DocumentModelV2Schema = z.object({
     /** Numele fișierului generat, fără extensie. Lipsă → se compune din
      *  templateCode + numărul comenzii. */
     fileName: z.string().optional(),
-    /** Limba documentului, pentru șabloanele care există în mai multe. */
-    locale: z.string().optional()
+    /**
+     * Limbile documentului, în ordinea în care apar în etichetele compuse
+     * („Tara Incarcare / Loading Country"). Lipsă → bilingv, adică exact
+     * comportamentul de azi. Ce nu e suportat se ignoră; vezi `resolveLanguages`.
+     */
+    languages: z.array(z.string()).optional()
   }),
 
   /** Comutatoarele de secțiuni din DOCX. Decise de reguli în CRM. */

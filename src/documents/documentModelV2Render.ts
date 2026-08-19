@@ -1,3 +1,4 @@
+import { buildLabels, languageFlags, resolveLanguages } from "./documentLabels";
 import type { Accessorial, DocumentModelV2, Party, Stop } from "./documentModelV2";
 
 /**
@@ -93,9 +94,18 @@ export function buildDocxModel(model: DocumentModelV2): Record<string, unknown> 
     has_temperature: model.cargo?.temperatureMin != null || model.cargo?.temperatureMax != null
   };
 
+  // Limba e un parametru, nu o proprietate a fișierului: etichetele se compun
+  // aici, iar șablonul conține doar `{L.cheie}`. Așa aceeași bază dă varianta
+  // bilingvă de azi, una doar în engleză, sau una doar în română.
+  const languages = resolveLanguages(model.meta.languages);
+
   const docx: Record<string, unknown> = {
     ...derived,
+    ...languageFlags(languages),
     ...model.flags,
+    /** Etichetele compuse, folosite ca `{L.loading_country}`. */
+    L: buildLabels(languages),
+    languages: languages.join(","),
 
     ...partyFields("issuer", model.parties.issuer),
     ...partyFields("client", model.parties.client),
