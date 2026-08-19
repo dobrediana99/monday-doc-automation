@@ -4,3 +4,12 @@ dist/
 .DS_Store
 coverage/
 *.log
+
+# Secrete locale — nu ajung niciodata pe git.
+# `.env` de mai sus nu le acopera: tiparele din .gitignore sunt nume literale,
+# deci `.env` nu se potriveste cu `.env.local`.
+.env.local
+.env*.local
+
+# Setari de IDE, personale.
+.idea/
