@@ -19,7 +19,11 @@ export const TEMPLATE_REGISTRY_V2: Record<string, string> = {
   // Comanda de client, entitatea emitentă decide antetul și datele firmei.
   cmd_client_ro: "v2/cmd_client_RO.docx",
   cmd_client_ch: "v2/cmd_client_CH.docx",
-  cmd_client_eood: "v2/cmd_client_EOOD.docx"
+  cmd_client_eood: "v2/cmd_client_EOOD.docx",
+  // Prima transformare reală, făcută cu scripts/build-v2-template.mjs pornind de
+  // la șablonul de furnizor aflat în uz. Serveşte ca probă a mecanismului:
+  // aceleaşi trei limbi ies din acest singur fişier.
+  cmd_furnizor_ro: "v2/cmd_furnizor_RO.docx"
 };
 
 export type TemplateResolution =
