@@ -32,6 +32,15 @@ function toModel(
   // Furnizor templates use Plata la (Client) + Conditii de Plata Client placeholders.
   applyPaymentTermsToModel({ model, legalForm: params.legalForm, party: "client" });
 
+  // Comanda intermediară poate fi emisă de un admin fără toate câmpurile completate pe
+  // board (vezi bypass-ul din crm_lyc runGenerateDoc) — un placeholder gol în docx apare
+  // ca o zonă vizibil goală/dezaliniată în document, așa că punem un spațiu în loc.
+  if (params.template === "intermediar") {
+    for (const key of Object.keys(model)) {
+      if (model[key] === "") model[key] = " ";
+    }
+  }
+
   return model;
 }
 
