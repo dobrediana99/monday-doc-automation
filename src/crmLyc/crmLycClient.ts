@@ -467,6 +467,13 @@ export class CrmLycClient {
       columnValues.push(mondayColumn(placeholder, text));
     }
 
+    // Comandă intermediară: prețul din document trebuie să vină din factura reală
+    // legată (coloana "Pret Intermediar cf. facturii"), nu din Pret Client/Pret Furnizor —
+    // vezi override-ul din crmLycDocumentGeneration.ts toModel().
+    if (template === "intermediar") {
+      columnValues.push(mondayColumn("intermediar_pret_factura", textByKey.intermediar_pret_factura ?? ""));
+    }
+
     const itemName = textByKey.order_number || itemId;
     return {
       id: itemId,

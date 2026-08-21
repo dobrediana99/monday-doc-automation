@@ -32,10 +32,21 @@ function toModel(
   // Furnizor templates use Plata la (Client) + Conditii de Plata Client placeholders.
   applyPaymentTermsToModel({ model, legalForm: params.legalForm, party: "client" });
 
-  // Comanda intermediară poate fi emisă de un admin fără toate câmpurile completate pe
-  // board (vezi bypass-ul din crm_lyc runGenerateDoc) — un placeholder gol în docx apare
-  // ca o zonă vizibil goală/dezaliniată în document, așa că punem un spațiu în loc.
   if (params.template === "intermediar") {
+    // Prețul comenzii intermediare trebuie să fie cel real din factura intercompany
+    // legată ("Pret Intermediar cf. facturii", ex. "3074.00 EUR") — nu Pret Client/
+    // Pret Furnizor (valori manuale, neverificate contra facturii reale).
+    const invoicePrice = String(model.intermediar_pret_factura ?? "").trim();
+    const match = /^([\d.,]+)\s*([A-Za-z]+)$/.exec(invoicePrice);
+    if (match) {
+      model.price = match[1];
+      model.numeric_mkpknkjp = match[1];
+      model.color_mkse3amh = match[2].toUpperCase();
+    }
+
+    // Comanda intermediară poate fi emisă de un admin fără toate câmpurile completate pe
+    // board (vezi bypass-ul din crm_lyc runGenerateDoc) — un placeholder gol în docx apare
+    // ca o zonă vizibil goală/dezaliniată în document, așa că punem un spațiu în loc.
     for (const key of Object.keys(model)) {
       if (model[key] === "") model[key] = " ";
     }
